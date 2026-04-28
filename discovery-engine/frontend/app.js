@@ -822,7 +822,16 @@ function renderWorkflows(workflows) {
           </div>
         </div>
         ${summaryRow}
+        <div class="wf-roi-headline-block" data-roi-for="${wf.id}">
+          <div class="wf-roi-headline-label">Estimated annual value</div>
+          <div class="wf-roi-headline-value wf-roi-loading">Calculating…</div>
+          <div class="wf-roi-headline-basis"></div>
+        </div>
         ${_benefitsStrip(wf.benefits)}
+        <details class="wf-roi-assumptions" data-roi-assump-for="${wf.id}" hidden>
+          <summary><span class="wf-roi-assump-summary-label">Assumptions used</span><span class="wf-roi-assump-count"></span></summary>
+          <div class="wf-roi-assump-body"></div>
+        </details>
       </div>`;
 
     card.querySelector('.workflow-card-header').addEventListener('click', () => {
@@ -837,6 +846,62 @@ function renderWorkflows(workflows) {
     });
 
     workflowList.appendChild(card);
+  });
+
+  if (currentGraphId && workflows.length > 0) {
+    _fetchRoi(currentGraphId);
+  }
+}
+
+async function _fetchRoi(graphId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/roi/calculate`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ graph_id: graphId }),
+    });
+    if (!res.ok) throw new Error(`ROI ${res.status}`);
+    const data = await res.json();
+    _renderRoiResults(data.roi || {});
+  } catch (e) {
+    console.warn('ROI fetch failed:', e);
+    document.querySelectorAll('.wf-roi-headline-value.wf-roi-loading').forEach(el => {
+      el.textContent = 'Unavailable';
+      el.classList.remove('wf-roi-loading');
+      el.classList.add('wf-roi-error');
+    });
+  }
+}
+
+function _renderRoiResults(roiByWorkflow) {
+  Object.entries(roiByWorkflow).forEach(([wfId, roi]) => {
+    const block = document.querySelector(`[data-roi-for="${wfId}"]`);
+    if (block) {
+      const valEl   = block.querySelector('.wf-roi-headline-value');
+      const basisEl = block.querySelector('.wf-roi-headline-basis');
+      valEl.textContent = roi.headline_value_display || '—';
+      valEl.classList.remove('wf-roi-loading');
+      basisEl.textContent = roi.headline_basis || '';
+    }
+    const assump = document.querySelector(`[data-roi-assump-for="${wfId}"]`);
+    if (assump) {
+      const body  = assump.querySelector('.wf-roi-assump-body');
+      const count = assump.querySelector('.wf-roi-assump-count');
+      const items = roi.assumptions || [];
+      body.innerHTML = items.map(a => `
+        <div class="wf-roi-assump-item">
+          <div class="wf-roi-assump-row">
+            <span class="wf-roi-assump-label">${a.label || ''}</span>
+            <span class="wf-roi-assump-value">${a.value || ''}</span>
+          </div>
+          <div class="wf-roi-assump-rationale">${a.rationale || ''}</div>
+        </div>
+      `).join('') + (roi.methodology_note
+        ? `<div class="wf-roi-method-note"><span class="wf-roi-method-label">How it's calculated</span> ${roi.methodology_note}</div>`
+        : '');
+      if (count) count.textContent = items.length ? ` (${items.length})` : '';
+      assump.hidden = false;
+    }
   });
 }
 

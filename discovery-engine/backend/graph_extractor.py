@@ -208,6 +208,102 @@ OBJECT_MODEL_TOOL = {
     },
 }
 
+ROI_TOOL = {
+    "name": "calculate_workflow_roi",
+    "description": "Calculate the estimated annual USD value of automating a banking workflow, with explicit assumptions.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "headline_value_usd": {
+                "type": "integer",
+                "description": "Estimated annual value in whole USD (e.g. 2400000 for $2.4M).",
+            },
+            "headline_value_display": {
+                "type": "string",
+                "description": "Formatted headline figure with units, e.g. '$2.4M / year' or '$845K / year'.",
+            },
+            "headline_basis": {
+                "type": "string",
+                "description": "One sentence stating what primarily drives this number (e.g. 'FTE time freed on credit underwriting').",
+            },
+            "assumptions": {
+                "type": "array",
+                "description": "4-7 banking-industry assumptions used to derive the headline value.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "label":     {"type": "string", "description": "Short name, e.g. 'Loaded staff cost' or 'Annual transaction volume'."},
+                        "value":     {"type": "string", "description": "The figure used, e.g. '$85/hr fully loaded' or '12,000 loan applications/yr'."},
+                        "rationale": {"type": "string", "description": "One sentence on why this is realistic for retail/commercial banking."},
+                    },
+                    "required": ["label", "value", "rationale"],
+                },
+            },
+            "methodology_note": {
+                "type": "string",
+                "description": "1-2 sentences describing how the headline figure was calculated from the assumptions.",
+            },
+        },
+        "required": ["headline_value_usd", "headline_value_display", "headline_basis", "assumptions", "methodology_note"],
+    },
+}
+
+ROI_SYSTEM = (
+    "You are a banking automation ROI analyst. "
+    "Given an automation workflow and its supporting graph context, estimate the realistic ANNUAL "
+    "DOLLAR VALUE the bank would capture by automating it, and state the banking-industry "
+    "assumptions you used to get there.\n\n"
+    "Use realistic mid-2020s benchmarks for retail / commercial banking:\n"
+    "- Loaded staff cost: $60-95/hr for ops & back-office, $120-180/hr for credit, risk, compliance roles\n"
+    "- Average commercial loan value: $250K-$2M; retail loan: $25K-$80K; SME loan: $50K-$500K\n"
+    "- Net Interest Margin (NIM): 2.5-3.5% for US/EU commercial banks\n"
+    "- FTE productive hours: ~1,800/year per FTE\n"
+    "- KYC/onboarding volume: a mid-size commercial bank processes 5K-50K applications/yr\n"
+    "- Cost of regulatory breaches, opportunity cost on capital — only mention if material\n\n"
+    "Rules:\n"
+    "- Be concrete, conservative, and explainable. The headline figure must reconcile with the assumptions.\n"
+    "- If transaction volume is uncertain, state your volume assumption explicitly as one of the assumptions.\n"
+    "- Prefer FTE-time-freed valuations when SLA breaches are the main driver; prefer NIM-based revenue capture when faster cycle time unlocks more lending.\n"
+    "- Do not over-claim. A single workflow rarely yields >$10M/yr in a single bank — flag if your number exceeds that.\n"
+    "Always call the calculate_workflow_roi tool."
+)
+
+
+def calculate_workflow_roi(workflow: dict, graph: dict) -> dict:
+    nodes = graph.get("nodes", [])
+    policies = [n for n in nodes if n.get("type") == "Policy"]
+    roles    = [n for n in nodes if n.get("type") == "Role"]
+
+    policy_lines = "\n".join(
+        f"- {p['label']}: {p.get('description','')[:120]}" for p in policies[:8]
+    ) or "(none extracted)"
+    role_lines = ", ".join(r["label"] for r in roles[:8]) or "(none extracted)"
+
+    benefits = workflow.get("benefits", {}) or {}
+    as_is_n  = len(workflow.get("as_is_steps", []))
+    to_be_n  = len(workflow.get("to_be_steps", []))
+
+    prompt = (
+        f"WORKFLOW: {workflow.get('title','')}\n"
+        f"Description: {workflow.get('description','')}\n"
+        f"Complexity: {workflow.get('complexity','')} | "
+        f"Current avg: {workflow.get('current_avg','')} | "
+        f"SLA target: {workflow.get('sla_target','')} | "
+        f"Compliance: {workflow.get('sla_compliance_rate','')}\n"
+        f"Steps: {as_is_n} as-is, {to_be_n} to-be\n\n"
+        f"DERIVED BENEFITS (already estimated upstream):\n"
+        f"- Time saved per transaction: {benefits.get('time_saved_per_transaction','—')}\n"
+        f"- Extra capacity unlocked: {benefits.get('extra_capacity','—')}\n"
+        f"- Revenue / cost impact note: {benefits.get('revenue_or_cost_impact','—')}\n"
+        f"- Implementation effort: {benefits.get('implementation_effort','—')}\n\n"
+        f"GOVERNING POLICIES (use SLAs from these):\n{policy_lines}\n\n"
+        f"ROLES INVOLVED: {role_lines}\n\n"
+        "Calculate the headline annual USD value of automating this workflow, "
+        "and list 4-7 banking assumptions you used to derive it."
+    )
+    return _call_tool(ROI_SYSTEM, prompt, ROI_TOOL, model=HAIKU, max_tokens=1500)
+
+
 PULSE_AI_TOOL = {
     "name": "generate_pulse_recommendations",
     "description": "Generate strategic AI-powered recommendations based on knowledge graph structure and gaps.",
