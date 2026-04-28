@@ -794,6 +794,129 @@ pre {
   text-transform: uppercase; letter-spacing: 0.04em;
 }
 
+/* ROI headline (above benefits strip) */
+.wf-roi-headline-block {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--brand-light);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  text-align: center;
+}
+.wf-roi-headline-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.wf-roi-headline-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--brand);
+  line-height: 1.15;
+  font-feature-settings: 'tnum' 1;
+}
+.wf-roi-headline-value.wf-roi-loading {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.wf-roi-headline-value.wf-roi-error {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.wf-roi-headline-basis {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--text-sec);
+  line-height: 1.35;
+}
+.wf-roi-headline-basis:empty { display: none; }
+
+/* ROI assumptions disclosure (below benefits strip) */
+.wf-roi-assumptions {
+  margin-top: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+.wf-roi-assumptions > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 7px 10px;
+  font-size: 10px;
+  color: var(--text-sec);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+.wf-roi-assumptions > summary::-webkit-details-marker { display: none; }
+.wf-roi-assumptions > summary::before {
+  content: '▸';
+  font-size: 9px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.wf-roi-assumptions[open] > summary::before { transform: rotate(90deg); }
+.wf-roi-assump-count { color: var(--text-muted); font-weight: 400; }
+.wf-roi-assump-body {
+  padding: 4px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-roi-assump-item {
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+}
+.wf-roi-assump-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.wf-roi-assump-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+.wf-roi-assump-value {
+  font-size: 10px;
+  color: var(--brand);
+  font-family: var(--mono);
+  text-align: right;
+}
+.wf-roi-assump-rationale {
+  font-size: 10px;
+  color: var(--text-sec);
+  line-height: 1.4;
+}
+.wf-roi-method-note {
+  margin-top: 4px;
+  padding: 6px 8px;
+  font-size: 10px;
+  color: var(--text-sec);
+  line-height: 1.4;
+  border-top: 1px dashed var(--border-light);
+}
+.wf-roi-method-label {
+  display: block;
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
 /* disclaimer */
 .workflow-disclaimer {
   font-size: 10px; color: var(--text-muted);

@@ -17,6 +17,8 @@ env/
 *.log
 *.jsonl
 nohup.out
+.server.log
+.server.err
 
 # OS
 .DS_Store
