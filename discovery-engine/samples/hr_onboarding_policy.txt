@@ -1,0 +1,190 @@
+POLICY DOCUMENT
+Title:  Employee Onboarding and Induction Policy
+Document ID: HR-POL-018
+Version: 2.4
+Owner: Human Resources Department
+Approved by: Chief People Officer
+Effective Date: 2024-03-01
+Review Cycle: Annual
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PURPOSE AND SCOPE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This policy establishes the standard process for onboarding all new employees, including
+permanent hires, fixed-term contractors, and internal transfers. It defines the
+responsibilities of HR, line managers, IT, and the new employee to ensure a consistent
+and compliant start-of-employment experience across all UK offices and remote locations.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. ROLES AND RESPONSIBILITIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2.1 HR Business Partner (HRBP)
+Owns the end-to-end onboarding process. Initiates the New Employee Record in the
+HR Information System (Workday) upon receipt of a signed offer letter. Sends the
+Welcome Pack to the new employee at least five business days before the start date.
+Coordinates with Payroll, IT, and the Line Manager to complete all pre-boarding tasks.
+
+2.2 Talent Acquisition Team
+Responsible for completing background checks via the Background Screening System
+(Sterling) before the start date. Provides the HRBP with a Clearance Certificate
+once all checks are passed. If a check is outstanding on the start date, the
+Talent Acquisition Team escalates to the HR Director for a risk assessment.
+
+2.3 Line Manager
+Must complete the Line Manager Onboarding Checklist in Workday at least three
+business days before the new employee's start date. Responsibilities include
+assigning a Buddy, booking the 30-60-90 Day Review meetings, and ensuring the
+new employee's workstation is prepared.
+
+2.4 IT Department
+Provisions all necessary hardware and software access based on the role profile
+submitted by the HR Business Partner via the IT Service Management System (ServiceNow).
+Laptop, access cards, and system credentials must be ready by 09:00 on the employee's
+first day. Provisioning is tracked via a ServiceNow ticket linked to the employee record.
+
+2.5 Payroll Team
+Sets up the new employee on the Payroll System (ADP) using data transferred
+automatically from Workday via the HR-Payroll Integration. Confirms National Insurance,
+tax code, and bank details with the employee during the first week. Issues first payslip
+through the Employee Self-Service Portal.
+
+2.6 Buddy
+A peer-level employee assigned by the Line Manager to provide informal support during
+the first 90 days. Not a management role; responsible for social integration,
+answering day-to-day questions, and checking in weekly.
+
+2.7 New Employee
+Responsible for completing all mandatory onboarding tasks in Workday within the
+first five business days, including submitting bank details, reviewing the Employee
+Handbook, and completing the mandatory e-learning modules in the Learning Management
+System (Cornerstone).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PRE-BOARDING PROCESS (Before Day 1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step P1 – Offer Acceptance and Record Creation
+The Talent Acquisition Team marks the candidate as "Offer Accepted" in the Applicant
+Tracking System (ATS – Greenhouse). This triggers an automated integration that
+creates a draft New Employee Record in Workday. The HRBP is notified via a Workday
+workflow task.
+
+Step P2 – Background Screening
+The Talent Acquisition Team initiates a background check request in Sterling, covering
+right-to-work verification, criminal record check (DBS), and employment history
+verification. Sterling returns results within five business days. The HRBP monitors
+check status via the Sterling dashboard.
+
+Step P3 – Welcome Pack
+The HRBP sends the Welcome Pack email to the new employee, containing:
+- Start date, location, and first-day instructions
+- Link to the Employee Self-Service Portal
+- IT equipment delivery confirmation
+- Pre-reading: Company Values, Code of Conduct, and Health & Safety Policy
+
+Step P4 – IT Provisioning Request
+The HRBP submits an IT provisioning request in ServiceNow, attaching the Role Profile
+which specifies required system access (e.g. Microsoft 365, Salesforce CRM, Jira).
+The IT Department fulfils the request and closes the ServiceNow ticket upon completion.
+
+Step P5 – Payroll Setup
+Workday automatically transfers the new employee's personal data to ADP via the
+HR-Payroll Integration on the day the employment record is activated. The Payroll
+Team receives a notification and verifies that all mandatory fields (NI number,
+tax code, cost centre) are populated.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. FIRST DAY PROCESS (Day 1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step D1 – Welcome and Orientation
+The Line Manager greets the new employee and provides a site orientation. The HRBP
+conducts a 30-minute HR Induction Session covering: employment terms, benefits
+enrolment, absence reporting, grievance and disciplinary policy, and data protection
+(GDPR) obligations.
+
+Step D2 – System Access Verification
+The IT Department provides the new employee with login credentials for Microsoft 365
+and the Employee Self-Service Portal. The new employee verifies access to all systems
+listed in the ServiceNow provisioning ticket. Any access issues are reported to the
+IT Service Desk within the same day.
+
+Step D3 – Mandatory e-Learning Enrolment
+The Learning Management System (Cornerstone) automatically enrols the new employee
+in mandatory modules based on their role and department. Required modules include:
+- Information Security Awareness (due within 5 days)
+- Health & Safety at Work (due within 5 days)
+- Anti-Bribery and Corruption (due within 10 days)
+- GDPR and Data Protection (due within 10 days)
+Non-completion triggers an automated reminder from Cornerstone after the due date,
+escalating to the Line Manager if still outstanding after 5 days.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. FIRST 90 DAYS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step F1 – 30-Day Review
+The Line Manager conducts a structured 30-Day Review meeting. Outcomes and action
+points are recorded in Workday. The HRBP is notified of the completion.
+
+Step F2 – 60-Day Review
+A 60-Day Review is conducted by the Line Manager, with a focus on role performance
+and any training needs. If performance concerns are identified, the HRBP is involved
+to agree a support plan.
+
+Step F3 – 90-Day Probation Review
+The Line Manager completes the Probation Review Form in Workday and submits it to
+the HRBP. Outcomes are: Probation Passed, Probation Extended (by up to 30 days),
+or Probation Failed. Extension or failure requires HR Director approval. The new
+employee is informed in writing via the Employee Self-Service Portal.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. COMPLIANCE AND KEY POLICIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6.1 Right to Work Policy
+All right-to-work checks must be completed before the employee's first day, as
+required by the Immigration, Asylum and Nationality Act 2006. The Talent Acquisition
+Team is responsible for retaining copies of verified documents in Workday.
+
+6.2 GDPR – Employee Data Policy
+Employee personal data collected during onboarding is processed under the Legitimate
+Interests lawful basis (UK GDPR Article 6(1)(f)). Data is retained for the duration
+of employment plus 6 years. Employees can exercise data subject rights via the
+HRBP or the Data Protection Officer (DPO).
+
+6.3 Equal Opportunities Policy
+The onboarding process must be applied consistently regardless of age, disability,
+gender reassignment, race, religion, sex, or sexual orientation, in accordance with
+the Equality Act 2010. Any reasonable adjustments required by the new employee must
+be arranged by the Line Manager in consultation with the HRBP before Day 1.
+
+6.4 Mandatory Training Completion Policy
+All mandatory e-learning modules must be completed within the stated deadlines.
+Failure to complete within 30 days of the deadline will result in system access
+suspension until compliance is confirmed. The Learning Management System
+automatically notifies the IT Department to trigger the suspension.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SYSTEMS USED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Greenhouse (ATS)                   – Candidate tracking and offer management
+- Workday (HRIS)                     – Employee records, onboarding workflows, probation reviews
+- Sterling                           – Background screening and DBS checks
+- ServiceNow (ITSM)                  – IT provisioning requests and service desk
+- ADP                                – Payroll processing and payslip delivery
+- Cornerstone (LMS)                  – Mandatory e-learning and compliance training
+- Microsoft 365                      – Email, Teams, SharePoint collaboration
+- Salesforce CRM                     – Customer data access for relevant roles
+- Employee Self-Service Portal       – Self-service HR, payslips, and policy documents
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. KEY METRICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Time-to-productivity: target < 90 days
+- Background check completion rate before Day 1: target 100%
+- Mandatory e-learning completion within deadline: target > 95%
+- IT provisioning readiness by 09:00 Day 1: target 100%
+- 30/60/90 Day Review completion rate: target > 90%
+- New employee satisfaction score (30-day survey): target > 4.2/5.0

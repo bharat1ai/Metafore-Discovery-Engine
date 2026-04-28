@@ -1,0 +1,266 @@
+COMMERCIAL BANKING DIVISION
+LOAN ORIGINATION STANDARD OPERATING PROCEDURE
+Document Reference: SOP-LO-004.2
+Version: 4.2  |  Effective Date: 1 March 2024
+Owner: Head of Commercial Banking
+Classification: Internal Use Only
+
+─────────────────────────────────────────────────────────────────────
+
+1. PURPOSE AND SCOPE
+
+This Standard Operating Procedure governs the end-to-end loan
+origination process for all commercial loan applications processed
+by the Commercial Banking Division. It applies to all branch
+locations and covers applications from initial enquiry through
+to commitment letter issuance.
+
+All Loan Processing Officers, Credit Analysts, Branch Managers,
+and Credit Committee members are required to comply with this SOP.
+Non-compliance must be escalated to the Compliance Officer within
+24 hours of identification.
+
+─────────────────────────────────────────────────────────────────────
+
+2. PROCESS OVERVIEW
+
+The loan origination process consists of eight sequential stages.
+Each stage has a designated responsible role, a system of record,
+and a mandatory completion gate before the next stage may begin.
+
+Stage 1  — AML and Compliance Pre-Screening
+Stage 2  — Credit Bureau Pull
+Stage 3  — Document Collection and Upload
+Stage 4  — Debt-to-Income Ratio Calculation
+Stage 5  — Property Appraisal
+Stage 6  — Credit Assessment and Underwriting
+Stage 7  — Sanctioning Decision
+Stage 8  — Commitment Letter Issuance
+
+─────────────────────────────────────────────────────────────────────
+
+3. DETAILED PROCEDURES
+
+3.1  STAGE 1 — AML AND COMPLIANCE PRE-SCREENING
+
+Responsible Role:  Loan Processing Officer
+System of Record:  Compliance Tracker
+SLA:               Completed within 4 business hours of application receipt
+Gate:              AML Cleared status must be recorded in Compliance Tracker
+                   before any credit enquiry is initiated
+
+The Loan Processing Officer must initiate an Anti-Money Laundering
+screen through the Compliance Tracker system immediately upon receipt
+of a new loan application. The AML check covers sanctions list
+screening, Politically Exposed Person (PEP) checks, and adverse
+media review.
+
+The AML pre-screen MUST be completed and show a Cleared status in
+the Compliance Tracker before the credit bureau pull in Stage 2
+may be initiated. This sequence is mandatory under the Bank's AML
+Policy (POL-AML-001) and applicable financial regulations. Under
+no circumstances may a credit bureau query be submitted while an
+AML screen is pending or shows an Alert status.
+
+If the AML screen returns an Alert, the application must be referred
+to the Compliance Officer before proceeding.
+
+3.2  STAGE 2 — CREDIT BUREAU PULL
+
+Responsible Role:  Loan Processing Officer
+System of Record:  LoanIQ
+SLA:               Completed within 1 business day of AML clearance
+Gate:              Bureau reports filed in Document Management System
+
+The Loan Processing Officer initiates a dual credit bureau pull
+through LoanIQ using both Experian and TransUnion. Both bureau
+reports must be formally retrieved and filed in the designated
+folder structure within the Document Management System.
+
+Bureau reports must be obtained prior to the commencement of any
+credit analysis activity. The LoanIQ system records timestamps of
+all bureau queries and these are reviewed during compliance audits.
+
+3.3  STAGE 3 — DOCUMENT COLLECTION AND UPLOAD
+
+Responsible Role:  Loan Processing Officer
+System of Record:  Document Management System
+SLA:               All required documents uploaded within 48 hours of
+                   application receipt (Section 2.1 compliance threshold: 80%)
+Gate:              Document Completeness Certificate issued and countersigned
+
+The Loan Processing Officer is responsible for collecting all
+required customer documentation and uploading it to the Document
+Management System within 48 hours of application receipt.
+
+Required documents include: signed loan application form, proof of
+identity, proof of address, financial statements (3 years), business
+plan (commercial loans), and property details where applicable.
+
+Upon completion of document upload, the Loan Processing Officer must
+issue a Document Completeness Certificate and obtain countersignature
+from the Branch Manager. This certificate is a mandatory prerequisite
+for Stage 5 (Property Appraisal). Under no circumstances may an
+appraisal be commissioned before the Document Completeness Certificate
+has been issued and countersigned.
+
+3.4  STAGE 4 — DEBT-TO-INCOME RATIO CALCULATION
+
+Responsible Role:  Credit Analyst
+System of Record:  Loan Application Worksheet
+SLA:               Completed within 1 business day of document upload
+Gate:              DTI calculation certified on Loan Application Worksheet
+
+The Debt-to-Income ratio calculation must be performed and formally
+certified by a Credit Analyst on the standard Loan Application
+Worksheet. Only personnel holding the Credit Analyst role designation
+within LoanIQ may certify the DTI calculation field. Loan Processing
+Officers and Loan Officers do not have authority to certify DTI
+calculations under this SOP.
+
+The DTI ratio is calculated as total monthly debt obligations divided
+by gross monthly income. Applications with a DTI ratio exceeding 43%
+are referred to the Senior Underwriter for further assessment before
+proceeding to Credit Assessment.
+
+3.5  STAGE 5 — PROPERTY APPRAISAL
+
+Responsible Role:  Loan Processing Officer
+System of Record:  Appraisal Management System
+SLA:               Appraisal report received within 5 business days of
+                   appraisal instruction
+Gate:              Document Completeness Certificate (from Stage 3) must
+                   exist before appraisal vendor is engaged
+
+The Loan Processing Officer engages an approved appraisal vendor
+through the Appraisal Management System. The system will only permit
+appraisal instruction if a valid Document Completeness Certificate
+exists for the application. A property appraisal may not be
+commissioned until Stage 3 is complete.
+
+The appraisal report must be filed in the Document Management System
+upon receipt and linked to the relevant application record in LoanIQ.
+
+3.6  STAGE 6 — CREDIT ASSESSMENT AND UNDERWRITING
+
+Responsible Role:  Senior Underwriter (DTI > 43%) / Credit Analyst (standard)
+System of Record:  LoanIQ
+SLA:               Assessment completed within 2 business days of
+                   all Stage 3–5 inputs being available
+Gate:              Credit Assessment Report filed in LoanIQ
+
+The Credit Analyst or Senior Underwriter conducts a comprehensive
+credit assessment covering: DTI analysis, credit bureau report
+review, financial statement analysis, collateral valuation, and
+sector risk evaluation.
+
+The completed Credit Assessment Report must be filed in LoanIQ and
+forms the primary input for the Sanctioning Decision in Stage 7.
+
+3.7  STAGE 7 — SANCTIONING DECISION
+
+Responsible Role:  Credit Committee
+System of Record:  Credit Committee System
+SLA:               Decision issued within 1 business day of Credit
+                   Assessment Report submission (Section 5.2)
+Escalation:        Branch Manager must escalate any application exceeding
+                   2 business days without a decision
+
+The Credit Committee reviews the Credit Assessment Report and issues
+a sanctioning decision: Approved, Conditionally Approved, or Declined.
+
+The 1 business day SLA is mandatory. Branch Managers are required to
+monitor sanctioning queue status daily via the LoanIQ dashboard and
+initiate escalation to the Credit Committee for any application that
+has not received a decision within 2 business days.
+
+If the Credit Committee does not convene within the escalation window,
+the Branch Manager must notify the Head of Commercial Banking.
+
+3.8  STAGE 8 — COMMITMENT LETTER ISSUANCE
+
+Responsible Role:  Branch Manager
+System of Record:  Document Management System
+SLA:               Issued within 1 business day of sanctioning approval
+Gate:              Sanctioning decision must be Approved or Conditionally
+                   Approved
+
+Upon receipt of an Approved or Conditionally Approved sanctioning
+decision from the Credit Committee, the Branch Manager issues the
+formal Commitment Letter to the customer. The letter must include
+all approved terms, conditions, fee disclosures, and expiry date.
+
+The Branch Manager is the sole signatory for Commitment Letters.
+Letters must be filed in the Document Management System and linked
+to the application in LoanIQ.
+
+─────────────────────────────────────────────────────────────────────
+
+4. ROLES AND RESPONSIBILITIES
+
+Role                  Responsibilities
+─────────────────     ──────────────────────────────────────────────────
+Loan Processing       Stages 1, 2, 3, 5 — initiates AML, pulls bureau
+Officer               reports, collects documents, engages appraisers
+
+Credit Analyst        Stage 4, 6 — certifies DTI calculations, conducts
+                      standard credit assessments
+
+Senior Underwriter    Stage 6 — conducts credit assessment for high-DTI
+                      applications (DTI > 43%)
+
+Branch Manager        Stage 3 (countersign), Stage 7 (escalation),
+                      Stage 8 (commitment letter signatory)
+
+Credit Committee      Stage 7 — issues sanctioning decisions
+
+Compliance Officer    AML Alert referrals, compliance breach escalations
+
+─────────────────────────────────────────────────────────────────────
+
+5. SYSTEMS REFERENCED
+
+System                     Purpose
+─────────────────────────  ───────────────────────────────────────────
+LoanIQ                     Primary loan management and origination system
+Compliance Tracker         AML screening, PEP checks, adverse media
+Document Management System Document storage, certificates, letters
+Loan Application Worksheet DTI calculation, credit certification
+Appraisal Management System Appraisal vendor engagement and tracking
+Credit Committee System    Sanctioning workflow and decision recording
+
+─────────────────────────────────────────────────────────────────────
+
+6. KEY POLICIES AND COMPLIANCE REFERENCES
+
+POL-AML-001   Anti-Money Laundering Policy — AML screen mandatory
+              before credit bureau query (Section 2.3)
+POL-DOC-002   Document Completeness Policy — Certificate required
+              before appraisal instruction (Section 3.1)
+POL-CRED-003  DTI Certification Policy — Credit Analyst sign-off
+              only (Section 4.1)
+POL-SANC-004  Sanctioning Timeline Policy — 1 business day SLA
+              (Section 5.2)
+POL-COMP-005  Document Upload SLA Policy — 80% of applications
+              within 48 hours (Section 2.1)
+
+─────────────────────────────────────────────────────────────────────
+
+7. SLA SUMMARY
+
+Stage                        Responsible Role        SLA
+───────────────────────────  ──────────────────────  ──────────────
+AML Pre-Screening            Loan Processing Officer 4 business hours
+Credit Bureau Pull           Loan Processing Officer 1 business day
+Document Upload              Loan Processing Officer 48 hours (80% threshold)
+DTI Calculation              Credit Analyst          1 business day
+Property Appraisal Report    Appraisal Vendor        5 business days
+Credit Assessment            Credit Analyst / SU     2 business days
+Sanctioning Decision         Credit Committee        1 business day
+Commitment Letter            Branch Manager          1 business day
+
+─────────────────────────────────────────────────────────────────────
+
+Approved by:   Head of Commercial Banking
+Reviewed by:   Chief Risk Officer, Head of Compliance
+Next Review:   1 March 2025

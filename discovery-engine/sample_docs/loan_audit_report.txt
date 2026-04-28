@@ -1,0 +1,160 @@
+COMMERCIAL BANKING DIVISION — LOAN ORIGINATION
+QUARTERLY COMPLIANCE AUDIT REPORT — Q3 2024
+Internal Audit Reference: IA-2024-Q3-LO-007
+Prepared by: Internal Audit Department
+Review Period: 1 July – 30 September 2024
+Classification: Internal Use Only
+
+─────────────────────────────────────────────────────────────────────
+
+1. EXECUTIVE SUMMARY
+
+This report presents the findings of the Internal Audit Department's
+quarterly review of loan origination processes within the Commercial
+Banking Division. The review covered 12 loan applications processed
+between 1 July and 30 September 2024 across three branch locations.
+
+Overall process adherence was found to be partial. While credit
+assessment activities and post-approval documentation were generally
+compliant, significant deviations from the established Standard
+Operating Procedure (SOP v4.2, effective March 2024) were identified
+in Anti-Money Laundering pre-screening sequencing, appraisal ordering
+protocols, sanctioning timelines, and role-specific sign-off
+requirements.
+
+Management attention is drawn to the AML sequencing finding, which
+represents a regulatory compliance risk and requires immediate
+remediation.
+
+─────────────────────────────────────────────────────────────────────
+
+2. SCOPE AND METHODOLOGY
+
+The audit examined loan origination files for 12 applications across
+the Downtown, Riverside, and Eastgate branch offices. Auditors
+reviewed loan origination documentation, system access logs from
+the LoanIQ platform, timestamps recorded in the Document Management
+System, compliance tracker entries, and approval records from the
+Credit Committee system.
+
+Each loan file was assessed against the current Loan Origination SOP
+version 4.2. Where timestamps were unavailable, auditors relied on
+document dating and system-generated activity records.
+
+─────────────────────────────────────────────────────────────────────
+
+3. FINDINGS
+
+3.1  Credit Bureau Pull — COMPLIANT
+
+Credit bureau enquiries (Experian and TransUnion dual pull) were
+completed and formally documented for all 12 reviewed applications
+prior to the commencement of credit analysis. No exceptions were
+noted. Bureau reports were filed within the designated folder
+structure in the Document Management System in all cases.
+
+3.2  Debt-to-Income Ratio Calculation — GENERALLY COMPLIANT
+
+Debt-to-income (DTI) ratio calculations were present in all 12
+reviewed files and had been formally recorded on the standard Loan
+Application Worksheet. In 11 of 12 cases the calculation was
+performed and certified by a Credit Analyst as required under SOP
+Section 4.1. However, in one case reviewed at the Eastgate branch,
+the DTI calculation was performed and certified by a Loan Officer
+rather than a Credit Analyst. The calculation result was arithmetically
+correct, but the sign-off authority was not in accordance with the
+role requirements prescribed in the SOP. This constitutes a role
+deviation that must be corrected in future applications.
+
+3.3  Document Upload and Completeness — COMPLIANT
+
+Loan Processing Officers uploaded required customer documentation
+within the 48-hour SLA in 10 of 12 reviewed cases (83%), which meets
+the acceptable compliance threshold of 80% set out in SOP Section 2.1.
+In the two non-compliant cases, delays ranged from 52 to 61 hours and
+were attributable to late submission by applicants.
+
+3.4  AML and Compliance Pre-Screening — NON-COMPLIANT (CRITICAL)
+
+Anti-Money Laundering screening was not completed before the credit
+bureau pull was initiated in 4 of the 12 reviewed cases (33%).
+Compliance Tracker system logs confirm that the AML check was
+recorded after the bureau query had already been submitted in these
+instances. This ordering directly reverses the mandatory sequence
+prescribed in SOP Section 2.3, which states that AML screening must
+be completed and cleared as a prerequisite gate before any credit
+enquiry is made. This finding has regulatory implications and is
+classified as a critical deviation.
+
+3.5  Property Appraisal Sequencing — NON-COMPLIANT
+
+In 2 of the 12 reviewed cases, the property appraisal was commissioned
+before document completeness had been formally confirmed. SOP Section
+3.1 requires that a Document Completeness Certificate be issued and
+countersigned before the appraisal vendor is engaged. In both
+instances, the appraisal was ordered directly by the Loan Processing
+Officer without the required completeness sign-off. One appraisal
+had to be paused mid-instruction when the missing documentation was
+subsequently identified.
+
+3.6  Sanctioning Timeline — NON-COMPLIANT
+
+Sanctioning decisions were issued within the one business day SLA
+set out in SOP Section 5.2 in only 5 of the 12 reviewed cases. The
+average sanctioning timeline across all reviewed files was 3.2
+business days. In 3 cases, delays exceeded 5 business days with no
+documented escalation to the Credit Committee. The longest delay
+recorded was 8 business days for a commercial property application
+at the Riverside branch.
+
+3.7  Commitment Letter Issuance — COMPLIANT
+
+Commitment letters were issued to customers following credit committee
+approval in all 12 reviewed cases where approval was granted.
+Letter content, fee disclosures, and signatory authority were
+reviewed and found to be compliant with current policy requirements
+in all instances.
+
+─────────────────────────────────────────────────────────────────────
+
+4. RECOMMENDATIONS
+
+4.1  AML Pre-Screening Gate (IMMEDIATE)
+Implement a system-level workflow gate in LoanIQ to prevent credit
+bureau queries from being submitted until the AML Compliance Tracker
+record shows a Cleared status. Conduct mandatory retraining for all
+Loan Processing Officers on the AML sequencing requirement within
+30 days.
+
+4.2  Document Completeness Before Appraisal
+Enforce the Document Completeness Certificate as a mandatory system
+dependency before the appraisal order workflow step can be initiated.
+Review the two affected cases to determine whether additional steps
+are required.
+
+4.3  Sanctioning Timeline Monitoring
+Branch managers are required to review sanctioning queue status
+daily and initiate escalation to the Credit Committee for any
+application exceeding 2 business days without a decision. A
+management dashboard report should be configured in LoanIQ to
+surface breach cases automatically.
+
+4.4  Role-Specific Sign-Off Controls
+Review access permissions in the Loan Application Worksheet to
+ensure that the DTI certification field can only be completed by
+users with the Credit Analyst role designation.
+
+─────────────────────────────────────────────────────────────────────
+
+5. MANAGEMENT RESPONSE
+
+Management accepts all four recommendations. Remediation plans for
+items 4.1 and 4.4 are targeted for completion within 45 days. Items
+4.2 and 4.3 are targeted for the next system release cycle.
+
+─────────────────────────────────────────────────────────────────────
+
+Prepared by:   Senior Internal Auditor, Commercial Banking
+Reviewed by:   Head of Internal Audit
+Distribution:  Chief Risk Officer, Head of Commercial Banking,
+               Branch Managers (Downtown, Riverside, Eastgate)

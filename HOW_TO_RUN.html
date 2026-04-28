@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How to Run — Metafore Discovery Engine</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #EEF6F6; color: #0f2020; font-size: 15px; line-height: 1.6;
+    }
+
+    /* Header */
+    .header {
+      background: #036868; color: #fff;
+      padding: 28px 40px; display: flex; align-items: center; gap: 16px;
+    }
+    .header-mark {
+      width: 40px; height: 40px; background: rgba(255,255,255,0.15);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800; color: #fff;
+    }
+    .header-text h1 { font-size: 22px; font-weight: 700; }
+    .header-text p  { font-size: 13px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+
+    /* Content */
+    .content { max-width: 820px; margin: 0 auto; padding: 48px 24px; }
+
+    .intro {
+      background: #fff; border: 1px solid #C4E0E0; border-radius: 12px;
+      padding: 28px 32px; margin-bottom: 40px;
+    }
+    .intro h2 { font-size: 18px; font-weight: 600; margin-bottom: 10px; color: #036868; }
+    .intro p  { color: #4a6868; }
+
+    /* Steps */
+    .steps { display: flex; flex-direction: column; gap: 24px; }
+
+    .step {
+      background: #fff; border: 1px solid #C4E0E0; border-radius: 12px;
+      padding: 28px 32px; display: flex; gap: 24px; align-items: flex-start;
+    }
+    .step-num {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: #036868; color: #fff;
+      font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-body { flex: 1; }
+    .step-body h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .step-body p  { color: #4a6868; margin-bottom: 10px; }
+    .step-body p:last-child { margin-bottom: 0; }
+
+    .tag {
+      display: inline-block;
+      background: #E6F4F4; border: 1px solid #C4E0E0;
+      border-radius: 6px; padding: 2px 10px;
+      font-size: 13px; font-weight: 600; color: #036868;
+      font-family: 'Courier New', monospace;
+    }
+
+    .callout {
+      background: #E6F4F4; border-left: 4px solid #036868;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px; margin-top: 12px;
+      font-size: 13px; color: #4a6868;
+    }
+    .callout strong { color: #036868; }
+
+    .warning {
+      background: #FEF9EC; border-left: 4px solid #CA8A04;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px; margin-top: 12px;
+      font-size: 13px; color: #92400E;
+    }
+
+    .btn-look {
+      display: inline-block;
+      background: #036868; color: #fff;
+      border-radius: 8px; padding: 10px 22px;
+      font-size: 14px; font-weight: 600;
+      margin-top: 14px; text-decoration: none;
+      cursor: pointer;
+    }
+
+    .file-card {
+      display: flex; align-items: center; gap: 14px;
+      background: #F7FAFA; border: 1px solid #C4E0E0;
+      border-radius: 8px; padding: 14px 18px; margin-top: 12px;
+    }
+    .file-icon { font-size: 32px; }
+    .file-info h4 { font-size: 14px; font-weight: 600; color: #036868; }
+    .file-info p  { font-size: 12px; color: #7a9a9a; margin-top: 2px; }
+
+    /* App guide */
+    .app-guide { margin-top: 48px; }
+    .app-guide h2 {
+      font-size: 18px; font-weight: 600; color: #036868;
+      margin-bottom: 20px;
+    }
+    .guide-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media(max-width: 600px) { .guide-grid { grid-template-columns: 1fr; } }
+
+    .guide-card {
+      background: #fff; border: 1px solid #C4E0E0; border-radius: 10px;
+      padding: 20px 22px;
+    }
+    .guide-card .icon { font-size: 28px; margin-bottom: 10px; }
+    .guide-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+    .guide-card p  { font-size: 13px; color: #4a6868; }
+
+    /* Troubleshoot */
+    .trouble { margin-top: 48px; }
+    .trouble h2 { font-size: 18px; font-weight: 600; color: #036868; margin-bottom: 20px; }
+    .trouble-item {
+      background: #fff; border: 1px solid #C4E0E0; border-radius: 10px;
+      padding: 18px 22px; margin-bottom: 12px;
+    }
+    .trouble-item h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; color: #0f2020; }
+    .trouble-item p  { font-size: 13px; color: #4a6868; }
+
+    .footer {
+      text-align: center; padding: 40px 24px;
+      font-size: 12px; color: #7a9a9a;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-mark">M</div>
+  <div class="header-text">
+    <h1>Metafore One — Discovery Engine</h1>
+    <p>Setup & Usage Guide — No technical knowledge needed</p>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="intro">
+    <h2>What does this app do?</h2>
+    <p>
+      The Discovery Engine reads your business documents (Word files, PDFs, or text files)
+      and automatically builds an interactive <strong>Knowledge Graph</strong> — a visual map
+      showing all the key processes, roles, systems, and policies in the document, and how
+      they connect to each other. You can click any bubble on the graph to read more about it.
+    </p>
+  </div>
+
+  <!-- ── SETUP STEPS ── -->
+  <div class="steps">
+
+    <!-- Step 1 -->
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Install Python (first time only)</h3>
+        <p>The app needs Python installed on your computer. If you've done this before, skip to Step 2.</p>
+        <p>
+          <a class="btn-look" href="https://www.python.org/downloads/" target="_blank">
+            Download Python →
+          </a>
+        </p>
+        <div class="warning">
+          ⚠️ During installation, make sure to tick the checkbox that says
+          <strong>"Add Python to PATH"</strong> before clicking Install Now.
+          If you miss this, the app won't start.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>Open the project folder</h3>
+        <p>
+          You should have received a folder called <span class="tag">Discovery engine</span>.
+          Open it so you can see the files inside. It will look something like this:
+        </p>
+        <div class="file-card">
+          <div class="file-icon">📁</div>
+          <div class="file-info">
+            <h4>Discovery engine /</h4>
+            <p>START.bat &nbsp;·&nbsp; STOP.bat &nbsp;·&nbsp; HOW_TO_RUN.html &nbsp;·&nbsp; discovery-engine/</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Double-click <span class="tag">START.bat</span></h3>
+        <p>
+          Find the file called <span class="tag">START.bat</span> and double-click it.
+          A black window will appear — this is normal.
+        </p>
+        <div class="callout">
+          <strong>First run:</strong> it will download and install some packages automatically.
+          This takes about 1–2 minutes. Do not close the window while it's working.
+          You'll see it say <strong>"[OK]"</strong> at each step when it's ready.
+        </div>
+        <div class="callout" style="margin-top:8px">
+          <strong>Second run onwards:</strong> it starts in about 5 seconds.
+        </div>
+        <div class="warning" style="margin-top:8px">
+          If Windows asks "Do you want to allow this app to make changes?" — click <strong>Yes</strong>.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h3>The app opens in your browser automatically</h3>
+        <p>
+          After a few seconds, your web browser will open with the app at
+          <span class="tag">http://localhost:8001</span>.
+          You're ready to go!
+        </p>
+        <div class="callout">
+          If the browser doesn't open by itself, open it manually and type
+          <strong>http://localhost:8001</strong> in the address bar.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /steps -->
+
+  <!-- ── HOW TO USE THE APP ── -->
+  <div class="app-guide">
+    <h2>How to use the app</h2>
+    <div class="guide-grid">
+      <div class="guide-card">
+        <div class="icon">📂</div>
+        <h4>Upload a document</h4>
+        <p>
+          Drag and drop a Word (.docx), PDF, or text (.txt) file onto the upload area
+          on the left side — or click <strong>browse</strong> to find it on your computer.
+          You can upload more than one document at a time.
+        </p>
+      </div>
+      <div class="guide-card">
+        <div class="icon">⚡</div>
+        <h4>Extract the Knowledge Graph</h4>
+        <p>
+          Click the <strong>Extract Knowledge Graph</strong> button.
+          The AI will read your document and build the graph.
+          This takes 15–30 seconds — you'll see a spinner while it works.
+        </p>
+      </div>
+      <div class="guide-card">
+        <div class="icon">🔵</div>
+        <h4>Explore the graph</h4>
+        <p>
+          Each bubble (node) is a process, role, system, or policy from your document.
+          <strong>Click any bubble</strong> to see its full description and the exact text
+          from the document that it came from. Drag to move bubbles around.
+          Scroll to zoom in and out.
+        </p>
+      </div>
+      <div class="guide-card">
+        <div class="icon">🏗️</div>
+        <h4>Generate Object Model</h4>
+        <p>
+          Click the <strong>Generate Object Model</strong> button in the top-right
+          to get a suggested data model for the entities in your document.
+          Useful for developers who want to build a database from the graph.
+          Use the Copy button to copy the code.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NODE COLOUR GUIDE ── -->
+  <div class="app-guide" style="margin-top:40px">
+    <h2>What do the colours mean?</h2>
+    <div class="guide-grid">
+      <div class="guide-card" style="border-left:4px solid #0D9488">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#C7F0ED;border:2px solid #0D9488"></div>
+          <h4 style="margin:0">Process (Teal)</h4>
+        </div>
+        <p>Business processes, workflows, and procedures — things that happen step by step.</p>
+      </div>
+      <div class="guide-card" style="border-left:4px solid #EA580C">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#FED7AA;border:2px solid #EA580C"></div>
+          <h4 style="margin:0">Role (Orange)</h4>
+        </div>
+        <p>People, teams, departments, and job titles — who does what.</p>
+      </div>
+      <div class="guide-card" style="border-left:4px solid #3B82F6">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#BFDBFE;border:2px solid #3B82F6"></div>
+          <h4 style="margin:0">System (Blue)</h4>
+        </div>
+        <p>Software, platforms, tools, and databases — the technology involved.</p>
+      </div>
+      <div class="guide-card" style="border-left:4px solid #EF4444">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#FECACA;border:2px solid #EF4444"></div>
+          <h4 style="margin:0">Policy (Red)</h4>
+        </div>
+        <p>Rules, regulations, compliance requirements, and standards.</p>
+      </div>
+      <div class="guide-card" style="border-left:4px solid #7C3AED">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#DDD6FE;border:2px solid #7C3AED"></div>
+          <h4 style="margin:0">Data Entity (Purple)</h4>
+        </div>
+        <p>Documents, records, forms, and data types — information that flows around.</p>
+      </div>
+      <div class="guide-card" style="border-left:4px solid #CA8A04">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#FEF08A;border:2px solid #CA8A04"></div>
+          <h4 style="margin:0">Event (Amber)</h4>
+        </div>
+        <p>Triggers, milestones, notifications, and deadlines — things that happen at a point in time.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TROUBLESHOOTING ── -->
+  <div class="trouble">
+    <h2>Something not working?</h2>
+
+    <div class="trouble-item">
+      <h4>❌ "Python is not installed" message</h4>
+      <p>
+        Go to <strong>https://www.python.org/downloads/</strong>, download the latest version,
+        and install it. During installation, make sure to tick <strong>"Add Python to PATH"</strong>.
+        Then double-click START.bat again.
+      </p>
+    </div>
+
+    <div class="trouble-item">
+      <h4>❌ Browser opens but shows an error page</h4>
+      <p>
+        The server is still starting up. Wait 10 seconds and refresh the browser page
+        (press <strong>F5</strong> or <strong>Ctrl+R</strong>).
+      </p>
+    </div>
+
+    <div class="trouble-item">
+      <h4>❌ "Extraction failed" message when uploading a document</h4>
+      <p>
+        This usually means the app couldn't reach the AI service.
+        Check your internet connection and try again.
+        If it keeps failing, contact the person who sent you the project.
+      </p>
+    </div>
+
+    <div class="trouble-item">
+      <h4>❌ Package installation failed</h4>
+      <p>
+        Try right-clicking <strong>START.bat</strong> and choosing
+        <strong>"Run as administrator"</strong>, then try again.
+      </p>
+    </div>
+
+    <div class="trouble-item">
+      <h4>🛑 How do I stop the app?</h4>
+      <p>
+        Double-click <strong>STOP.bat</strong> to shut the server down cleanly.
+        Or just close the small black window titled "MetaforeOne Discovery — Server".
+      </p>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<div class="footer">
+  Metafore One — Discovery Engine &nbsp;·&nbsp; Confidential
+</div>
+
+</body>
+</html>

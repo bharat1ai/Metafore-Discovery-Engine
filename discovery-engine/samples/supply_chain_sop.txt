@@ -1,0 +1,170 @@
+STANDARD OPERATING PROCEDURE
+Title:  Purchase-to-Pay (P2P) Supply Chain Process
+Document ID: SCP-042
+Version: 3.1
+Owner: Supply Chain Operations Department
+Approved by: Chief Procurement Officer
+Effective Date: 2024-01-15
+Review Cycle: Annual
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PURPOSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This SOP defines the end-to-end purchase-to-pay process for all direct and indirect
+procurement activities. It governs how purchase requisitions are raised, approved,
+converted to purchase orders, fulfilled by suppliers, received at warehouses, and
+settled through accounts payable.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. SCOPE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Applies to all business units that procure goods or services above £500. Excludes
+petty cash purchases and emergency procurement governed by SCP-043.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. ROLES AND RESPONSIBILITIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3.1 Requestor
+Any employee who identifies a business need and initiates a Purchase Requisition (PR)
+in the ERP system (SAP S/4HANA). Responsible for providing accurate cost centre,
+quantity, and specification data.
+
+3.2 Line Manager
+Must review and approve Purchase Requisitions up to £5,000 within two business days
+of submission. Approval is performed in SAP S/4HANA via the Manager Self-Service portal.
+
+3.3 Procurement Officer
+Reviews all approved PRs above £500. Selects or confirms the preferred supplier from
+the Approved Vendor List (AVL). Converts the PR to a Purchase Order (PO) in SAP S/4HANA.
+Responsible for ensuring all suppliers are registered in the Supplier Portal before
+a PO is issued.
+
+3.4 Category Manager
+Manages strategic supplier relationships for spend categories exceeding £50,000
+annually. Leads competitive tendering (RFQ/RFP) processes and negotiates framework
+agreements stored in the Contract Management System (CMS).
+
+3.5 Warehouse Team
+Responsible for physical receipt of goods. Performs a Goods Receipt (GR) in SAP
+S/4HANA when items arrive, matching quantity and condition against the PO. Raises
+a Discrepancy Report if goods are damaged or quantity differs.
+
+3.6 Accounts Payable Team
+Processes supplier invoices received via the Invoice Management System (IMS). Performs
+three-way matching (PO vs GR vs Invoice) in SAP S/4HANA. Initiates payment run in
+the Banking Platform on approved payment dates.
+
+3.7 Finance Controller
+Approves invoices exceeding £25,000 before payment is released. Monitors budget
+compliance via the Finance Dashboard (Power BI).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PROCESS STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1 – Requisition Creation
+The Requestor creates a Purchase Requisition in SAP S/4HANA, specifying item
+description, quantity, required delivery date, and cost centre. The system
+automatically checks budget availability against the Annual Budget Plan stored
+in the Finance Module.
+
+Step 2 – Requisition Approval
+The PR is routed to the Line Manager for approval via automated workflow in
+SAP S/4HANA. If the PR value exceeds £5,000, it is additionally routed to the
+Procurement Officer for secondary approval. PRs above £50,000 require Category
+Manager sign-off. Unactioned PRs trigger an automated escalation email after 48
+hours, notifying the approver's manager.
+
+Step 3 – Supplier Selection
+The Procurement Officer checks the Approved Vendor List (AVL) maintained in the
+Supplier Portal. For new suppliers or spend above £10,000 with a non-contracted
+supplier, a Request for Quotation (RFQ) must be issued to a minimum of three
+suppliers. RFQ responses are evaluated using the Supplier Scorecard stored in the
+Procurement Analytics Dashboard.
+
+Step 4 – Purchase Order Creation
+Once a supplier is confirmed, the Procurement Officer converts the approved PR into
+a Purchase Order in SAP S/4HANA. The PO is transmitted electronically to the supplier
+via the Supplier Portal or EDI. A copy is automatically filed in the Document
+Management System (DMS).
+
+Step 5 – Order Acknowledgement
+The supplier must acknowledge receipt of the PO within 24 hours via the Supplier
+Portal. If no acknowledgement is received, the Procurement Officer is alerted by the
+Supplier Portal's automated notification service. Persistent non-acknowledgement
+(>48 hours) is escalated to the Category Manager.
+
+Step 6 – Goods Receipt
+Upon delivery, the Warehouse Team scans the delivery note and performs a Goods Receipt
+transaction in SAP S/4HANA. The GR record is matched to the open PO. If a discrepancy
+in quantity or quality is detected, a Discrepancy Report is logged in the Quality
+Management Module and the Procurement Officer is notified to liaise with the supplier.
+
+Step 7 – Invoice Processing
+Suppliers submit invoices to the Invoice Management System (IMS) either via email or
+the Supplier Portal. The IMS performs Optical Character Recognition (OCR) to extract
+invoice data and creates a draft record. The Accounts Payable Team reviews the draft
+and initiates three-way matching in SAP S/4HANA.
+
+Step 8 – Three-Way Matching
+SAP S/4HANA automatically compares the Purchase Order, Goods Receipt, and Invoice.
+If all three documents match within defined tolerance levels (±2% or ±£50, whichever
+is lower), the invoice is auto-approved. Mismatches are flagged for manual review
+by the Accounts Payable Team. Invoice disputes are tracked in the IMS Dispute Register.
+
+Step 9 – Payment
+Approved invoices are included in the weekly payment run executed by the Accounts
+Payable Team via the Banking Platform. Payment terms default to Net 30 days unless
+a framework agreement specifies otherwise. Remittance advices are sent automatically
+to suppliers via the Supplier Portal.
+
+Step 10 – Reconciliation and Reporting
+The Finance Controller reconciles AP ledger balances monthly using the Finance Dashboard
+in Power BI. Outstanding POs, overdue invoices, and budget variances are reported to
+the CFO as part of the Monthly Management Accounts pack.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. KEY POLICIES AND CONTROLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5.1 Segregation of Duties Policy
+No single individual may create a PR, approve it, convert it to a PO, and approve
+the resulting invoice. SAP S/4HANA enforces role-based access control to prevent
+conflicts.
+
+5.2 Approved Vendor List (AVL) Policy
+All suppliers must be onboarded through the Supplier Onboarding Process (SOP-SC-007)
+before a PO can be raised. Onboarding includes credit checks, compliance screening,
+and GDPR data processing agreements.
+
+5.3 Procurement Thresholds Policy
+Purchases below £500: no PR required.
+£500–£5,000: Line Manager approval.
+£5,001–£50,000: Procurement Officer approval.
+Above £50,000: Category Manager approval + competitive tendering.
+
+5.4 GDPR and Data Retention Policy
+All procurement documents (PRs, POs, GRs, invoices) are retained for 7 years in
+the Document Management System in compliance with HMRC requirements and GDPR Article 17.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. SYSTEMS USED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- SAP S/4HANA         – Core ERP for PR, PO, GR, invoice, and payment processing
+- Supplier Portal     – External-facing portal for supplier registration and communication
+- Invoice Management System (IMS) – Invoice capture, OCR, and dispute management
+- Contract Management System (CMS) – Storage of supplier contracts and framework agreements
+- Procurement Analytics Dashboard – Spend analytics and supplier scorecards
+- Finance Dashboard (Power BI)    – Budget monitoring and AP reporting
+- Document Management System (DMS) – Archiving of all procurement documents
+- Banking Platform    – Payment execution and bank reconciliation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. KEY PERFORMANCE INDICATORS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- PR-to-PO cycle time: target < 3 business days
+- Invoice processing time: target < 5 business days from receipt
+- Three-way match auto-approval rate: target > 85%
+- On-time payment rate: target > 95%
+- Supplier portal adoption rate: target > 90% of active suppliers

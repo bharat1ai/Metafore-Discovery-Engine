@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metafore Works — Discovery</title>
+
+  <!-- Self-hosted brand fonts -->
+  <style>
+    @font-face { font-family: 'GT America'; src: url('fonts/GT-America-Standard-Regular.otf'); font-weight: 400; font-style: normal; }
+    @font-face { font-family: 'GT America'; src: url('fonts/GT-America-Standard-Medium.otf');  font-weight: 500; font-style: normal; }
+    @font-face { font-family: 'Brut Grotesque'; src: url('fonts/BrutGrotesque-Book.otf');  font-weight: 400; }
+    @font-face { font-family: 'Brut Grotesque'; src: url('fonts/BrutGrotesque-Light.otf'); font-weight: 300; }
+    @font-face { font-family: 'IBM Plex Mono'; src: url('fonts/IBMPlexMono-Regular.ttf'); font-weight: 400; }
+    @font-face { font-family: 'IBM Plex Mono'; src: url('fonts/IBMPlexMono-Light.ttf');   font-weight: 300; }
+    @font-face { font-family: 'IBM Plex Mono'; src: url('fonts/IBMPlexMono-Bold.ttf');    font-weight: 700; }
+    @font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Regular.ttf'); font-weight: 400; }
+    @font-face { font-family: 'Inter'; src: url('fonts/Inter_18pt-Bold.ttf');    font-weight: 700; }
+  </style>
+
+  <link rel="stylesheet" href="styles.css" />
+  <script src="vis-network.min.js"></script>
+  <link rel="stylesheet" href="vis-network.min.css" />
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ── Left sidebar (200px labeled nav) ── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="metafore-logo.png" alt="Metafore" width="28" height="28" />
+      <span class="sidebar-brand">Metafore Works</span>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" id="nav-graph">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+        <span class="nav-label">Knowledge Graph</span>
+      </button>
+      <button class="nav-btn" id="nav-workflows">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        <span class="nav-label">Workflows</span>
+      </button>
+      <button class="nav-btn" id="nav-gap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        <span class="nav-label">Gap Analysis</span>
+      </button>
+      <button class="nav-btn" id="nav-conformance">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span class="nav-label">Conformance</span>
+      </button>
+      <button class="nav-btn" id="nav-object-model">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        <span class="nav-label">Object Model</span>
+      </button>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="nav-btn" id="btn-pulse" disabled>
+        <span class="sidebar-pulse-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="pulse-badge" id="pulse-badge" hidden>0</span>
+        </span>
+        <span class="nav-label">Pulse</span>
+      </button>
+      <button class="nav-btn" id="btn-reset">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 .49-3.16"/>
+        </svg>
+        <span class="nav-label">Reset</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main column ── -->
+  <div class="main-column">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <span class="header-product">DISCOVERY ENGINE</span>
+        <div class="header-divider"></div>
+        <div class="stat-chip" id="chip-nodes" hidden>
+          <span class="chip-val" id="stat-nodes">0</span>
+          <span class="chip-label">Nodes</span>
+        </div>
+        <div class="stat-chip" id="chip-edges" hidden>
+          <span class="chip-val" id="stat-edges">0</span>
+          <span class="chip-label">Edges</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Body (upload panel + graph) -->
+    <div class="body-area">
+
+      <!-- Left panel -->
+      <div class="upload-panel" id="upload-panel">
+
+        <!-- Knowledge Graph view -->
+        <div id="graph-panel-view">
+          <div class="panel-section">
+            <div class="section-label">Documents</div>
+
+            <div class="upload-zone" id="upload-zone">
+              <div class="upload-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <p class="upload-text">Drop files or <label for="file-input" class="file-label">browse</label></p>
+              <p class="upload-hint">PDF · DOCX · TXT</p>
+              <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt" hidden />
+            </div>
+
+            <ul class="file-list" id="file-list"></ul>
+
+            <button id="btn-extract" class="btn-primary" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Extract Knowledge Graph
+            </button>
+          </div>
+
+          <div class="panel-section" id="legend-section" hidden>
+            <div class="section-label">Node Types</div>
+            <ul class="legend-list" id="legend-list"></ul>
+          </div>
+        </div>
+
+        <!-- Workflows view -->
+        <div id="workflows-panel-view" hidden>
+          <div class="panel-section">
+            <div class="section-label">Workflow Suggestions</div>
+            <div id="workflow-spinner" class="workflow-spinner hidden">
+              <div class="spinner-ring spinner-ring-sm"></div>
+              <span class="workflow-spinner-label">Analysing graph and generating workflows…</span>
+            </div>
+            <div id="workflow-thin-graph-msg" class="workflow-thin-msg" hidden>
+              Upload a richer document to generate meaningful workflows
+            </div>
+            <button id="btn-generate-workflows" class="btn-primary" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Generate Workflows
+            </button>
+          </div>
+          <div id="workflow-list"></div>
+        </div>
+
+        <!-- Gap Analysis view -->
+        <div id="gap-panel" class="gap-panel" hidden>
+
+          <!-- top bar -->
+          <div class="gap-topbar">
+            <div class="gap-topbar-left">
+              <span class="gap-topbar-title">Gap Analysis &amp; Blueprint</span>
+              <span class="gap-last-analysed" id="gap-last-analysed">Not yet analysed</span>
+            </div>
+            <button id="btn-gap-analyse" class="btn-header" disabled>Analyse Graph</button>
+          </div>
+
+          <!-- empty state -->
+          <div class="gap-empty-state" id="gap-empty-state">
+            <div class="gap-empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l3 3L22 4"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </div>
+            <p class="gap-empty-title">No analysis yet</p>
+            <p class="gap-empty-sub">Click <strong>Analyse Graph</strong> to check your Knowledge Graph for completeness and generate improvement recommendations.</p>
+            <button id="btn-gap-analyse-empty" class="btn-primary gap-empty-btn" disabled>Analyse Graph</button>
+          </div>
+
+          <!-- loading -->
+          <div class="gap-loading" id="gap-loading" hidden>
+            <div class="spinner-ring-sm"></div>
+            <span class="gap-loading-label">Calculating…</span>
+          </div>
+
+          <!-- results -->
+          <div class="gap-results" id="gap-results" hidden>
+
+            <!-- score + stats row -->
+            <div class="gap-score-row">
+              <div class="gap-score-card">
+                <div class="section-label" style="margin-bottom:10px">Coverage Score</div>
+                <div class="gap-score-number" id="gap-score-number">—</div>
+                <div class="gap-score-bar-wrap">
+                  <div class="gap-score-bar-track">
+                    <div class="gap-score-bar-fill" id="gap-score-bar-fill" style="width:0%"></div>
+                  </div>
+                  <span class="gap-score-badge" id="gap-score-badge">—</span>
+                </div>
+              </div>
+              <div class="gap-stats-card">
+                <div class="section-label" style="margin-bottom:10px">Graph Statistics</div>
+                <div class="gap-stats-grid" id="gap-stats-grid"></div>
+              </div>
+            </div>
+
+            <!-- checks -->
+            <div class="gap-checks-section" id="gap-checks-section"></div>
+
+            <!-- blueprint -->
+            <div class="gap-blueprint-wrap">
+              <div id="gap-blueprint-pre" class="gap-blueprint-pre">
+                <div class="section-label">Blueprint Summary</div>
+                <p class="gap-bp-pre-text">Generate an AI-powered blueprint based on the gap analysis above.</p>
+                <button id="btn-generate-blueprint" class="btn-primary gap-bp-btn">Generate Blueprint →</button>
+              </div>
+              <div id="gap-blueprint-result" class="gap-blueprint-result" hidden>
+                <!-- populated by JS -->
+              </div>
+            </div>
+
+          </div><!-- /gap-results -->
+        </div><!-- /gap-panel -->
+
+        <!-- Conformance view -->
+        <div id="conformance-panel" class="conformance-panel" hidden>
+
+          <!-- top bar -->
+          <div class="conf-topbar">
+            <div class="conf-topbar-left">
+              <span class="conf-topbar-title">Conformance Checker</span>
+              <span class="conf-graph-info" id="conf-graph-info">No graph loaded</span>
+            </div>
+          </div>
+
+          <!-- Section 1: Upload (always visible) -->
+          <div class="conf-upload-wrap" id="conf-upload-wrap">
+
+            <div class="conf-main-doc-row" id="conf-main-doc-row" hidden>
+              <!-- populated by JS: "Analysing against: {filename} ✓" -->
+            </div>
+
+            <div class="conf-drop-zone" id="conf-drop-zone">
+              <div class="conf-drop-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <p class="conf-drop-label">Drop evidence document here</p>
+              <p class="conf-drop-sub">Audit report · incident log · email thread · meeting minutes · inspection record</p>
+              <p class="conf-drop-hint">PDF · DOCX · TXT</p>
+              <input type="file" id="conf-file-input" accept=".pdf,.docx,.txt" hidden />
+            </div>
+
+            <div class="conf-file-selected" id="conf-file-selected" hidden>
+              <!-- populated by JS after upload -->
+            </div>
+
+            <button id="btn-run-conformance" class="btn-primary conf-run-btn" disabled>
+              Run Conformance Check →
+            </button>
+
+          </div><!-- /conf-upload-wrap -->
+
+          <!-- Section 2: Loading -->
+          <div class="conf-loading" id="conf-loading" hidden>
+            <div class="spinner-ring"></div>
+            <p class="conf-loading-label" id="conf-loading-label">Comparing evidence against graph nodes…</p>
+            <p class="conf-loading-sub">This typically takes 15–30 seconds</p>
+          </div>
+
+          <!-- Section 3: Results -->
+          <div class="conf-results" id="conf-results" hidden>
+            <div class="conf-score-card"       id="conf-score-card"></div>
+            <div class="conf-overlay-controls" id="conf-overlay-controls"></div>
+            <div class="conf-report"           id="conf-report"></div>
+            <div class="conf-actions">
+              <button class="btn-header conf-action-btn" id="btn-conf-reset-upload">Upload Different Evidence</button>
+              <button class="btn-primary conf-action-btn" id="btn-conf-rerun">Re-run Analysis</button>
+            </div>
+          </div>
+
+        </div><!-- /conformance-panel -->
+
+        <!-- Object Model view -->
+        <div id="object-model-panel" hidden>
+          <div class="om-topbar">
+            <div>
+              <div class="section-label" style="margin-bottom:4px">Generated Output</div>
+              <span class="om-title">Object Model</span>
+            </div>
+          </div>
+          <!-- Loading state -->
+          <div id="om-loading" class="om-loading" hidden>
+            <div class="spinner-ring spinner-ring-sm"></div>
+            <span class="om-loading-label">Generating object model…</span>
+          </div>
+
+          <!-- Empty state (no graph yet) -->
+          <div id="om-empty" class="om-empty-state">
+            <p class="om-empty-text">Extract a Knowledge Graph first to generate the object model.</p>
+          </div>
+
+          <p class="model-summary" id="model-summary"></p>
+          <div class="modal-tabs om-tabs" id="om-tabs" hidden>
+            <button class="tab active" data-tab="pydantic">Pydantic Models</button>
+            <button class="tab" data-tab="schema">JSON Schema</button>
+            <button class="tab" data-tab="diagram">Entity Diagram</button>
+          </div>
+          <div class="modal-body om-body" id="om-body" hidden>
+            <div class="tab-content" id="tab-pydantic">
+              <div class="copy-row">
+                <button class="btn-copy" id="copy-pydantic">Copy</button>
+              </div>
+              <pre id="pydantic-code"></pre>
+            </div>
+            <div class="tab-content hidden" id="tab-schema">
+              <div class="copy-row">
+                <button class="btn-copy" id="copy-schema">Copy</button>
+              </div>
+              <pre id="schema-code"></pre>
+            </div>
+            <div class="tab-content hidden" id="tab-diagram">
+              <div class="erd-container" id="erd-container">
+                <svg class="erd-svg" id="erd-svg"></svg>
+                <div class="erd-entities" id="erd-entities"></div>
+              </div>
+            </div>
+          </div>
+        </div><!-- /object-model-panel -->
+
+      </div><!-- /upload-panel -->
+
+      <!-- Graph area (always visible) -->
+      <div class="graph-area">
+        <div class="placeholder" id="placeholder">
+          <div class="placeholder-icon">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </div>
+          <p class="placeholder-title">No graph loaded</p>
+          <p class="placeholder-sub">Upload documents and click<br/><strong>Extract Knowledge Graph</strong></p>
+        </div>
+
+        <div id="spinner" class="spinner hidden">
+          <div class="spinner-ring"></div>
+          <p class="spinner-label">Extracting knowledge graph…</p>
+        </div>
+
+        <div id="gap-highlight-banner" class="gap-highlight-banner" hidden>
+          Showing <span id="gap-banner-count">0</span> nodes from <span id="gap-banner-source">Gap Analysis</span> —
+          <button id="gap-banner-clear" class="gap-banner-clear">Clear ×</button>
+        </div>
+
+        <div id="network-container"></div>
+
+        <!-- ── Natural Language Query ── -->
+        <div id="nlq-container" class="nlq-container" hidden>
+
+          <!-- Answer card (slides up above bar) -->
+          <div id="nlq-answer-card" class="nlq-answer-card" hidden>
+            <div id="nlq-shimmer" class="nlq-shimmer">
+              <div class="shimmer-line shimmer-long"></div>
+              <div class="shimmer-line shimmer-medium"></div>
+              <div class="shimmer-line shimmer-short"></div>
+              <p class="nlq-loading-label">Analysing your graph…</p>
+            </div>
+            <div id="nlq-answer-content" class="nlq-answer-content" hidden>
+              <div class="nlq-answer-header">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nlq-answer-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span id="nlq-question-echo" class="nlq-question-echo"></span>
+                <button class="nlq-close-btn" id="nlq-close-btn" title="Close">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <p id="nlq-answer-text" class="nlq-answer-text"></p>
+              <div id="nlq-node-chips" class="nlq-chips-row"></div>
+              <div id="nlq-followup-chips" class="nlq-followup-row"></div>
+            </div>
+          </div>
+
+          <!-- Input bar -->
+          <div class="nlq-bar">
+            <div id="nlq-context-chips" class="nlq-context-chips"></div>
+            <div class="nlq-input-row">
+              <input type="text" id="nlq-input" class="nlq-input" placeholder="Ask about your graph…" maxlength="500" autocomplete="off" />
+              <span id="nlq-char-count" class="nlq-char-count"></span>
+              <button id="nlq-submit" class="nlq-submit-btn" title="Ask">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </div>
+
+        </div><!-- /nlq-container -->
+
+      </div><!-- /graph-area -->
+
+    </div><!-- /body-area -->
+
+  </div><!-- /main-column -->
+
+  <!-- ── Right detail panel ── -->
+  <aside class="detail-panel" id="detail-panel">
+    <div class="detail-inner">
+      <div class="detail-header">
+        <div class="detail-type-badge" id="detail-badge"></div>
+        <button class="icon-btn" id="close-detail" title="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <h2 class="detail-title" id="detail-title"></h2>
+      <p class="detail-desc" id="detail-desc"></p>
+      <div class="detail-source-block">
+        <div class="section-label">Source Text</div>
+        <blockquote id="detail-source"></blockquote>
+      </div>
+    </div>
+  </aside>
+
+</div><!-- /app-shell -->
+
+<!-- ── Object Model Modal ── -->
+
+<!-- ── Pulse Recommendations Drawer ── -->
+<div class="pulse-overlay" id="pulse-overlay" hidden></div>
+<div class="pulse-drawer" id="pulse-drawer">
+  <div class="pulse-drawer-header">
+    <div class="pulse-drawer-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      Pulse Recommendations
+    </div>
+    <button class="pulse-drawer-close" id="pulse-drawer-close" title="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="pulse-drawer-body" id="pulse-drawer-body">
+    <div class="pulse-empty-state">Extract a graph to see recommendations.</div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
