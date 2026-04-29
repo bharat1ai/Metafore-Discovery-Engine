@@ -31,6 +31,7 @@ const NODE_TYPES = {
 let selectedFiles       = [];
 let currentGraph        = null;
 let currentGraphId      = null;
+let currentWorkflows    = null;   // populated after generateWorkflows; consumed by Dashboard
 let network             = null;
 const _originalNodeColors = {};
 
@@ -109,9 +110,10 @@ const nlqSubmit        = document.getElementById('nlq-submit');
 const nlqCloseBtn      = document.getElementById('nlq-close-btn');
 
 /* ── Panel view switcher ── */
-const PANEL_RATIOS = { graph: 35, workflows: 60, gap: 50, conformance: 50, 'object-model': 55 };
+const PANEL_RATIOS = { dashboard: 50, graph: 35, workflows: 60, gap: 50, conformance: 50, 'object-model': 55 };
 
 function switchView(view) {
+  document.getElementById('dashboard-panel').hidden       = (view !== 'dashboard');
   document.getElementById('gap-panel').hidden             = (view !== 'gap');
   document.getElementById('conformance-panel').hidden     = (view !== 'conformance');
   document.getElementById('graph-panel-view').hidden      = (view !== 'graph');
@@ -133,6 +135,12 @@ switchView('graph');
 setNavActive('nav-graph');
 
 /* ── Base nav handlers ── */
+document.getElementById('nav-dashboard').addEventListener('click', () => {
+  setNavActive('nav-dashboard');
+  switchView('dashboard');
+  renderDashboard();   // auto-refresh on return
+});
+
 document.getElementById('nav-graph').addEventListener('click', () => {
   setNavActive('nav-graph');
   switchView('graph');
@@ -661,6 +669,7 @@ async function generateWorkflows() {
       throw new Error(err.detail || res.statusText);
     }
     const { workflows } = await res.json();
+    currentWorkflows = workflows;
     renderWorkflows(workflows);
   } catch (e) {
     alert(`Workflow generation failed:\n${e.message}`);
@@ -2159,6 +2168,7 @@ btnReset.addEventListener('click', () => {
   gapAnalysisResult            = null;
   gapBlueprintData             = null;
   gapHighlightActive           = false;
+  currentWorkflows             = null;
   switchView('graph');
   gapEmptyState.hidden         = false;
   gapResults.hidden            = true;
@@ -2200,3 +2210,377 @@ document.addEventListener('keydown', e => {
     closeDetailPanel();
   }
 });
+
+/* ── Dashboard ── */
+const HEALTH_BAND = [
+  { min: 80, label: 'Strong',     cls: 'dash-health-strong'  },
+  { min: 60, label: 'Healthy',    cls: 'dash-health-healthy' },
+  { min: 40, label: 'At risk',    cls: 'dash-health-warn'    },
+  { min: 0,  label: 'Needs work', cls: 'dash-health-poor'    },
+];
+
+function _dashHealthBand(score) {
+  return HEALTH_BAND.find(b => score >= b.min) || HEALTH_BAND[HEALTH_BAND.length - 1];
+}
+
+function _dashAvgSlaCompliance() {
+  if (!currentWorkflows || !currentWorkflows.length) return null;
+  const vals = currentWorkflows
+    .map(w => parseFloat(w.sla_compliance_rate))
+    .filter(v => !isNaN(v));
+  if (!vals.length) return null;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+}
+
+function _dashHealthScore(coverage, sla, conform) {
+  const parts = [
+    { val: coverage, w: 0.40 },
+    { val: sla,      w: 0.35 },
+    { val: conform,  w: 0.25 },
+  ].filter(p => p.val !== null && p.val !== undefined);
+  if (!parts.length) return null;
+  const totalW = parts.reduce((a, p) => a + p.w, 0);
+  const score  = parts.reduce((a, p) => a + (p.val * p.w / totalW), 0);
+  return Math.round(score);
+}
+
+function _dashCollectTopIssues() {
+  const issues = [];
+  // Gap-analysis critical + warning checks
+  const checks = (gapAnalysisResult?.checks) || [];
+  const SEV_BY_CHECK = {
+    no_role:              'critical',
+    unlinked_policy:      'critical',
+    no_system:            'warning',
+    unmeasured_objective: 'warning',
+    orphaned:             'warning',
+    duplicates:           'info',
+    low_confidence:       'info',
+  };
+  checks.forEach(c => {
+    const sev = SEV_BY_CHECK[c.check_id] || 'info';
+    if ((sev === 'critical' || sev === 'warning') && (c.count || 0) > 0) {
+      issues.push({
+        kind:       'gap',
+        severity:   sev,
+        title:      c.title,
+        detail:     `${c.count} affected: ${(c.affected_node_labels || []).slice(0, 3).join(', ')}`,
+        node_ids:   c.affected_node_ids || [],
+        navigate:   'gap',
+      });
+    }
+  });
+  // SLA-breaching workflow steps
+  (currentWorkflows || []).forEach(wf => {
+    (wf.as_is_steps || []).forEach(step => {
+      if (step.sla_status === 'breach') {
+        const ids = [];
+        if (step.responsible_role?.node_id) ids.push(step.responsible_role.node_id);
+        if (step.system_used?.node_id)      ids.push(step.system_used.node_id);
+        issues.push({
+          kind:       'sla',
+          severity:   'critical',
+          title:      `SLA breach: ${step.name}`,
+          detail:     `${wf.title} — current ${step.current_avg || '?'} vs target ${step.sla_target || '?'}`,
+          node_ids:   ids,
+          navigate:   'workflows',
+          workflow_id: wf.id,
+        });
+      }
+    });
+  });
+  const sevOrder = { critical: 0, warning: 1, info: 2 };
+  issues.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity]);
+  return issues.slice(0, 5);
+}
+
+function _dashCollectQuickWins() {
+  return (currentWorkflows || [])
+    .filter(w => w.roi && w.roi.headline_value_usd)
+    .sort((a, b) => (b.roi.headline_value_usd || 0) - (a.roi.headline_value_usd || 0))
+    .slice(0, 4);
+}
+
+function _dashCollectAutomationHighlights() {
+  const all = [];
+  (currentWorkflows || []).forEach(wf => {
+    const stepNames = {};
+    (wf.as_is_steps || []).forEach(s => { stepNames[s.step_number] = s.name || ''; });
+    (wf.automation?.step_scores || []).forEach(s => {
+      all.push({
+        score:    s.automation_score || 0,
+        approach: s.suggested_approach || '',
+        step:     stepNames[s.step_number] || `Step ${s.step_number}`,
+        workflow: wf.title,
+      });
+    });
+  });
+  return all.sort((a, b) => b.score - a.score).slice(0, 3);
+}
+
+function _dashFmtUSD(n) {
+  if (!n && n !== 0) return '—';
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
+  return `$${n}`;
+}
+
+function _dashEmptyHtml() {
+  return `
+    <div class="dash-empty">
+      <div class="dash-empty-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <h2 class="dash-empty-title">Welcome to the Discovery Engine</h2>
+      <p class="dash-empty-sub">Upload an SOP, policy, or process document to extract a knowledge graph and unlock workflows, ROI, gap analysis, and conformance.</p>
+      <button class="dash-cta-btn" id="dash-cta-upload">Upload document →</button>
+    </div>`;
+}
+
+function renderDashboard() {
+  const panel = document.getElementById('dashboard-panel');
+  if (!panel) return;
+
+  if (!currentGraph) {
+    panel.innerHTML = _dashEmptyHtml();
+    document.getElementById('dash-cta-upload')?.addEventListener('click', () => {
+      setNavActive('nav-graph');
+      switchView('graph');
+      fileInput?.click();
+    });
+    return;
+  }
+
+  // Section 1: Health score
+  const coverage = gapAnalysisResult?.coverage_score ?? null;
+  const sla      = _dashAvgSlaCompliance();
+  const conform  = conformanceResult?.overall_conformance_rate ?? null;
+  const health   = _dashHealthScore(coverage, sla, conform);
+  const band     = health !== null ? _dashHealthBand(health) : null;
+
+  // Section 3: Graph composition
+  const typeCounts = {};
+  (currentGraph.nodes || []).forEach(n => {
+    typeCounts[n.type] = (typeCounts[n.type] || 0) + 1;
+  });
+
+  // Sections 4-6
+  const issues       = _dashCollectTopIssues();
+  const quickWins    = _dashCollectQuickWins();
+  const autoTop      = _dashCollectAutomationHighlights();
+
+  // Section 7: Completeness
+  const checklist = [
+    { label: 'Knowledge graph extracted',    done: !!currentGraph,                     nav: 'nav-graph',       view: 'graph'       },
+    { label: 'Workflows generated',          done: !!(currentWorkflows && currentWorkflows.length), nav: 'nav-workflows', view: 'workflows' },
+    { label: 'Gap analysis run',             done: !!gapAnalysisResult,                nav: 'nav-gap',         view: 'gap'         },
+    { label: 'Conformance check run',        done: !!conformanceResult,                nav: 'nav-conformance', view: 'conformance' },
+  ];
+
+  // Hero header
+  const nodeCount = (currentGraph.nodes || []).length;
+  const edgeCount = (currentGraph.edges || []).length;
+  const heroHtml = `
+    <div class="dash-hero">
+      <div class="dash-hero-eyebrow">PROCESS HEALTH OVERVIEW</div>
+      <div class="dash-hero-title">Discovery Engine</div>
+      <div class="dash-hero-meta">
+        <span class="dash-hero-stat"><b>${nodeCount}</b> nodes</span>
+        <span class="dash-hero-stat-divider"></span>
+        <span class="dash-hero-stat"><b>${edgeCount}</b> edges</span>
+        <span class="dash-hero-stat-divider"></span>
+        <span class="dash-hero-stat">${(currentWorkflows || []).length} workflows</span>
+      </div>
+    </div>`;
+
+  // Health score (SVG ring)
+  const ringR = 52;
+  const ringC = 2 * Math.PI * ringR; // 326.7
+  const ringFill = health !== null ? (health / 100) * ringC : 0;
+
+  const healthHtml = health !== null ? `
+    <div class="dash-section dash-health-section">
+      <div class="dash-section-label">Overall Health Score</div>
+      <div class="dash-health-row">
+        <div class="dash-health-ring">
+          <svg viewBox="0 0 120 120" class="dash-ring-svg">
+            <circle cx="60" cy="60" r="${ringR}" class="dash-ring-track"/>
+            <circle cx="60" cy="60" r="${ringR}" class="dash-ring-fill ${band.cls}"
+                    style="stroke-dasharray:${ringFill.toFixed(1)} ${ringC.toFixed(1)};"/>
+          </svg>
+          <div class="dash-ring-center">
+            <span class="dash-ring-value">${health}</span>
+            <span class="dash-ring-of">/ 100</span>
+          </div>
+        </div>
+        <div class="dash-health-meta">
+          <div class="dash-health-band ${band.cls}">${band.label.toUpperCase()}</div>
+          <div class="dash-health-formula">
+            ${coverage !== null ? `<span class="dash-formula-pill">Coverage <b>${coverage}</b></span>` : '<span class="dash-formula-pill dash-formula-missing">Coverage —</span>'}
+            ${sla !== null ? `<span class="dash-formula-pill">SLA <b>${sla}%</b></span>` : '<span class="dash-formula-pill dash-formula-missing">SLA —</span>'}
+            ${conform !== null ? `<span class="dash-formula-pill">Conformance <b>${conform}%</b></span>` : '<span class="dash-formula-pill dash-formula-missing">Conformance —</span>'}
+          </div>
+          <div class="dash-health-weights">Weighted: 40% coverage · 35% SLA · 25% conformance</div>
+        </div>
+      </div>
+    </div>` : `
+    <div class="dash-section dash-health-section">
+      <div class="dash-section-label">Overall Health Score</div>
+      <div class="dash-health-empty">Run gap analysis, generate workflows, or run a conformance check to compute the score.</div>
+    </div>`;
+
+  const metricCard = (label, value, statusLabel, statusCls, navId, viewKey, nullState) => `
+    <button class="dash-metric-card ${nullState ? 'dash-metric-null' : ''}" data-nav="${navId}" data-view="${viewKey}">
+      <div class="dash-metric-label">${label}</div>
+      <div class="dash-metric-value ${statusCls}">${nullState ? '—' : value}</div>
+      <div class="dash-metric-status ${statusCls}">${nullState ? 'Not run' : statusLabel}</div>
+      <div class="dash-metric-arrow">→</div>
+    </button>`;
+
+  const _slaStatus = (v) => v >= 85 ? ['Meeting target', 'dash-status-good'] : v >= 70 ? ['Watch', 'dash-status-warn'] : ['Below target', 'dash-status-poor'];
+  const _covStatus = (v) => v >= 70 ? ['Strong', 'dash-status-good'] : v >= 50 ? ['Partial', 'dash-status-warn'] : ['Sparse', 'dash-status-poor'];
+  const _confStatus = (v) => v >= 70 ? ['Conforming', 'dash-status-good'] : v >= 50 ? ['Mixed', 'dash-status-warn'] : ['Non-conforming', 'dash-status-poor'];
+
+  const metricsHtml = `
+    <div class="dash-section">
+      <div class="dash-section-label">Metric snapshot</div>
+      <div class="dash-metrics-grid">
+        ${metricCard('Coverage Score',  coverage !== null ? `${coverage}` : null, ...(coverage !== null ? _covStatus(coverage)  : ['', '']), 'nav-gap',         'gap',         coverage === null)}
+        ${metricCard('SLA Compliance',  sla      !== null ? `${sla}%`     : null, ...(sla      !== null ? _slaStatus(sla)      : ['', '']), 'nav-workflows',   'workflows',   sla      === null)}
+        ${metricCard('Conformance',     conform  !== null ? `${conform}%` : null, ...(conform  !== null ? _confStatus(conform) : ['', '']), 'nav-conformance', 'conformance', conform  === null)}
+      </div>
+    </div>`;
+
+  const maxTypeCount = Math.max(1, ...Object.values(typeCounts));
+  const compositionHtml = `
+    <div class="dash-section">
+      <div class="dash-section-label">Graph composition</div>
+      <div class="dash-composition-bars">
+        ${Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => {
+          const t = NODE_TYPES[type] || { bg: '#E2E8F0', border: '#94A3B8' };
+          const widthPct = (count / maxTypeCount) * 100;
+          return `
+            <div class="dash-comp-row">
+              <span class="dash-comp-row-label">
+                <span class="dash-comp-dot" style="background:${t.bg};border:2px solid ${t.border}"></span>
+                ${type}
+              </span>
+              <div class="dash-comp-row-bar">
+                <div class="dash-comp-row-bar-fill" style="width:${widthPct}%; background:${t.border};"></div>
+              </div>
+              <span class="dash-comp-row-count">${count}</span>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  const sevDot = (s) => s === 'critical' ? '●' : s === 'warning' ? '●' : '●';
+  const issuesHtml = issues.length ? `
+    <div class="dash-section">
+      <div class="dash-section-label">Top issues</div>
+      <ul class="dash-issues-list">
+        ${issues.map((i, idx) => `
+          <li class="dash-issue-item dash-sev-${i.severity}" data-issue-idx="${idx}">
+            <span class="dash-issue-dot dash-sev-${i.severity}">${sevDot(i.severity)}</span>
+            <div class="dash-issue-text">
+              <div class="dash-issue-title">${i.title}</div>
+              <div class="dash-issue-detail">${i.detail}</div>
+            </div>
+            <span class="dash-issue-arrow">→</span>
+          </li>`).join('')}
+      </ul>
+    </div>` : `
+    <div class="dash-section">
+      <div class="dash-section-label">Top issues</div>
+      <div class="dash-empty-row">No critical issues detected.</div>
+    </div>`;
+
+  const quickWinsHtml = quickWins.length ? `
+    <div class="dash-section">
+      <div class="dash-section-label">Quick wins (highest ROI)</div>
+      <ul class="dash-quickwins-list">
+        ${quickWins.map(w => `
+          <li class="dash-quickwin-item" data-wf-id="${w.id}">
+            <span class="dash-qw-amount">${w.roi.headline_value_display || _dashFmtUSD(w.roi.headline_value_usd)}</span>
+            <span class="dash-qw-title">${w.title}</span>
+            <span class="dash-qw-arrow">→</span>
+          </li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  const autoHtml = autoTop.length ? `
+    <div class="dash-section">
+      <div class="dash-section-label">Automation highlights</div>
+      <ul class="dash-auto-list">
+        ${autoTop.map(a => {
+          const tier = a.score >= 8 ? 'high' : a.score >= 5 ? 'med' : 'low';
+          return `
+            <li class="dash-auto-item">
+              <span class="dash-auto-score dash-auto-tier-${tier}">${a.score}/10</span>
+              <div class="dash-auto-text">
+                <div class="dash-auto-step">${a.step}</div>
+                <div class="dash-auto-meta">${a.workflow} · ${a.approach || '—'}</div>
+              </div>
+            </li>`;
+        }).join('')}
+      </ul>
+    </div>` : '';
+
+  const checklistHtml = `
+    <div class="dash-section dash-checklist-section">
+      <div class="dash-section-label">Completeness</div>
+      <ul class="dash-checklist">
+        ${checklist.map(c => `
+          <li class="dash-check-item ${c.done ? 'dash-check-done' : 'dash-check-todo'}" data-nav="${c.nav}" data-view="${c.view}">
+            <span class="dash-check-mark">${c.done ? '✓' : '○'}</span>
+            <span class="dash-check-label">${c.label}</span>
+            ${c.done ? '' : '<span class="dash-check-cta">Run it →</span>'}
+          </li>`).join('')}
+      </ul>
+    </div>`;
+
+  panel.innerHTML = `${heroHtml}${healthHtml}${metricsHtml}${compositionHtml}${issuesHtml}${quickWinsHtml}${autoHtml}${checklistHtml}`;
+
+  // Wire metric card clicks
+  panel.querySelectorAll('.dash-metric-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const navId = card.dataset.nav;
+      const view  = card.dataset.view;
+      if (navId && view) { setNavActive(navId); switchView(view); }
+    });
+  });
+
+  // Wire issue clicks
+  panel.querySelectorAll('.dash-issue-item').forEach(li => {
+    li.addEventListener('click', () => {
+      const idx = parseInt(li.dataset.issueIdx, 10);
+      const issue = issues[idx];
+      if (!issue) return;
+      if (issue.node_ids?.length) highlightNodes(issue.node_ids, issue.severity);
+      if (issue.navigate === 'gap')        { setNavActive('nav-gap');        switchView('gap');        }
+      if (issue.navigate === 'workflows')  { setNavActive('nav-workflows');  switchView('workflows');  }
+      if (typeof gapBannerSource !== 'undefined' && gapBannerSource) gapBannerSource.textContent = issue.title;
+    });
+  });
+
+  // Wire quick-win clicks → workflows tab
+  panel.querySelectorAll('.dash-quickwin-item').forEach(li => {
+    li.addEventListener('click', () => {
+      setNavActive('nav-workflows');
+      switchView('workflows');
+    });
+  });
+
+  // Wire checklist click-throughs
+  panel.querySelectorAll('.dash-check-item.dash-check-todo').forEach(li => {
+    li.addEventListener('click', () => {
+      const navId = li.dataset.nav;
+      const view  = li.dataset.view;
+      if (navId && view) { setNavActive(navId); switchView(view); }
+    });
+  });
+}
+
