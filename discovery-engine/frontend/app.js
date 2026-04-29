@@ -920,6 +920,7 @@ async function renderWorkflows(workflows) {
         ${_benefitsStrip(wf.benefits)}
         ${_roiAssumptions(wf)}
         ${_autoScoreSection(wf)}
+        ${_variantsSection(wf)}
       </div>`;
 
     card.querySelector('.workflow-card-header').addEventListener('click', () => {
@@ -932,6 +933,8 @@ async function renderWorkflows(workflows) {
       chip.addEventListener('mouseenter', () => focusNode(nodeId));
       chip.addEventListener('mouseleave', resetNodeFocus);
     });
+
+    _wireVariantClicks(card, wf);
 
     workflowList.appendChild(card);
   });
@@ -1045,6 +1048,171 @@ function _autoScoreSection(wf) {
         </div>
       </div>
     </div>`;
+}
+
+/* ── Process Variants — rendering + click wiring ── */
+
+function _variantsSection(wf) {
+  const variants = wf.variants || [];
+  const tooFewSteps = (wf.as_is_steps || []).length < 3;
+
+  if (tooFewSteps || !variants.length) {
+    return `
+      <div class="wf-variants-block">
+        <div class="wf-variants-header">
+          <div class="wf-variants-title">Process Variants</div>
+          <div class="wf-variants-subtitle">How this process actually executes across different scenarios</div>
+        </div>
+        <div class="wf-variants-empty">Not enough process steps to generate meaningful variants</div>
+      </div>`;
+  }
+
+  // Variant A's step set — used to flag deviation steps in other variants.
+  const variantA = variants.find(v => (v.divergence_point || null) === null) || variants[0];
+  const aSteps = new Set((variantA?.steps || []).map(s => (s || '').toLowerCase().trim()));
+
+  const cardsHtml = variants.map((v, idx) => _variantCardHtml(v, idx, aSteps, wf)).join('');
+
+  // Summary card
+  const aFreq = variantA?.frequency_pct ?? 0;
+  const exceptionRate = Math.max(0, 100 - aFreq);
+  const breachVariants = variants.filter(v => v.sla_status === 'breach');
+  const highestRisk = breachVariants.length
+    ? breachVariants.reduce((a, b) => _tatDays(b.avg_tat) > _tatDays(a.avg_tat) ? b : a)
+    : null;
+  const tatDriver = variants.length
+    ? variants.reduce((a, b) => _tatDays(b.avg_tat) > _tatDays(a.avg_tat) ? b : a)
+    : null;
+
+  const summaryHtml = `
+    <div class="wf-variant-summary">
+      <div class="wf-variant-summary-title">Variant Summary</div>
+      <div class="wf-variant-summary-grid">
+        <div class="wf-vsum-row"><span class="wf-vsum-label">Standard path coverage</span><span class="wf-vsum-val">${aFreq}%</span></div>
+        <div class="wf-vsum-row"><span class="wf-vsum-label">Exception rate</span><span class="wf-vsum-val">${exceptionRate}%</span></div>
+        <div class="wf-vsum-row"><span class="wf-vsum-label">Highest risk variant</span><span class="wf-vsum-val">${highestRisk ? `${highestRisk.name} (${highestRisk.avg_tat})` : '—'}</span></div>
+        <div class="wf-vsum-row"><span class="wf-vsum-label">Biggest TAT driver</span><span class="wf-vsum-val">${tatDriver ? tatDriver.name : '—'}</span></div>
+      </div>
+    </div>`;
+
+  return `
+    <div class="wf-variants-block">
+      <div class="wf-variants-header">
+        <div class="wf-variants-title">Process Variants</div>
+        <div class="wf-variants-subtitle">How this process actually executes across different scenarios</div>
+      </div>
+      <div class="wf-variants-list">${cardsHtml}</div>
+      ${summaryHtml}
+    </div>`;
+}
+
+function _tatDays(tatStr) {
+  // Crude parse: "5.2 days" → 5.2 ; "4 hrs" → 0.17 ; fallback 0.
+  if (!tatStr) return 0;
+  const m = String(tatStr).match(/(\d+(?:\.\d+)?)\s*(day|hr|hour|min)/i);
+  if (!m) return 0;
+  const v = parseFloat(m[1]);
+  const u = m[2].toLowerCase();
+  if (u.startsWith('day')) return v;
+  if (u.startsWith('hr') || u.startsWith('hour')) return v / 24;
+  if (u.startsWith('min')) return v / (24 * 60);
+  return v;
+}
+
+function _variantCardHtml(v, idx, aSteps, wf) {
+  const isStandard = (v.divergence_point || null) === null;
+  const isBreach   = v.sla_status === 'breach';
+  const tier = isStandard ? 'standard' : isBreach ? 'breach' : (idx >= 2 ? 'amber' : 'mild');
+  const fillPct = Math.max(2, Math.min(100, v.frequency_pct || 0));
+
+  const stepsHtml = (v.steps || []).map(stepName => {
+    const isDeviation = !isStandard && !aSteps.has((stepName || '').toLowerCase().trim());
+    const matchedNodeId = _matchVariantStepNodeId(stepName, v.node_ids || []);
+    const cls = `wf-variant-step ${isDeviation ? 'wf-variant-step-deviation' : ''} ${matchedNodeId ? 'wf-variant-step-clickable' : ''}`;
+    const dataAttr = matchedNodeId ? `data-step-node="${matchedNodeId}"` : '';
+    return `<span class="${cls}" ${dataAttr}>${stepName}</span>`;
+  }).join('<span class="wf-variant-arrow">→</span>');
+
+  const slaBadge = isBreach
+    ? '<span class="wf-variant-sla wf-variant-sla-breach">⚠ SLA breach</span>'
+    : '<span class="wf-variant-sla wf-variant-sla-ok">✓ Within SLA</span>';
+  const sourceBadge = v.data_source === 'live'
+    ? `<span class="wf-variant-source wf-variant-source-live" title="${v.live_breach_rate_pct != null ? 'Live breach rate ' + v.live_breach_rate_pct + '%' : ''}">📊 Live data</span>`
+    : '<span class="wf-variant-source wf-variant-source-est">Estimated</span>';
+
+  const divergenceHtml = !isStandard && v.divergence_reason
+    ? `<div class="wf-variant-divergence"><span class="wf-variant-divergence-label">Diverges at</span> ${v.divergence_point || ''}: ${v.divergence_reason}</div>`
+    : '';
+
+  return `
+    <div class="wf-variant-card wf-variant-tier-${tier}" data-variant-idx="${idx}" data-wf-id="${wf.id}">
+      <div class="wf-variant-card-header">
+        <span class="wf-variant-id">VARIANT ${(v.id || ('variant_' + String.fromCharCode(97 + idx))).split('_').pop().toUpperCase()}</span>
+        <span class="wf-variant-name">${v.name || ''}</span>
+        <span class="wf-variant-freq">${v.frequency_pct ?? 0}%</span>
+      </div>
+      <div class="wf-variant-bar"><div class="wf-variant-bar-fill wf-variant-tier-${tier}" style="width:${fillPct}%"></div></div>
+      <div class="wf-variant-desc">${v.description || ''}</div>
+      ${divergenceHtml}
+      <div class="wf-variant-flow">${stepsHtml}</div>
+      <div class="wf-variant-footer">
+        <span class="wf-variant-tat">Avg TAT: <b>${v.avg_tat || '—'}</b></span>
+        ${slaBadge}
+        ${sourceBadge}
+      </div>
+    </div>`;
+}
+
+function _matchVariantStepNodeId(stepName, candidateNodeIds) {
+  if (!currentGraph || !stepName) return null;
+  const set = new Set(candidateNodeIds || []);
+  const candidates = currentGraph.nodes.filter(n => set.has(n.id));
+  if (!candidates.length) return null;
+  const lower = stepName.toLowerCase().trim();
+  for (const n of candidates) {
+    if ((n.label || '').toLowerCase().trim() === lower) return n.id;
+  }
+  for (const n of candidates) {
+    const nl = (n.label || '').toLowerCase().trim();
+    if (nl && (nl.includes(lower) || lower.includes(nl))) return n.id;
+  }
+  return null;
+}
+
+// Wire up clicks for variant cards + step chips on a workflow card after it's appended.
+function _wireVariantClicks(card, wf) {
+  // Step chip click → focus single matching node.
+  card.querySelectorAll('.wf-variant-step-clickable').forEach(chip => {
+    chip.addEventListener('click', e => {
+      e.stopPropagation();
+      const nodeId = chip.dataset.stepNode;
+      if (!nodeId) return;
+      highlightNodes([nodeId], 'info');
+      if (typeof gapBannerSource !== 'undefined' && gapBannerSource) {
+        gapBannerSource.textContent = `Variant step: ${chip.textContent.trim()}`;
+      }
+      if (typeof gapHighlightBanner !== 'undefined' && gapHighlightBanner) {
+        gapHighlightBanner.hidden = false;
+      }
+    });
+  });
+  // Variant card click → highlight all node_ids for the variant + show banner.
+  card.querySelectorAll('.wf-variant-card').forEach(varCard => {
+    varCard.addEventListener('click', () => {
+      const idx = parseInt(varCard.dataset.variantIdx, 10);
+      const v = (wf.variants || [])[idx];
+      if (!v) return;
+      const ids = v.node_ids || [];
+      const sev = v.sla_status === 'breach' ? 'critical' : 'info';
+      if (ids.length) highlightNodes(ids, sev);
+      if (typeof gapBannerSource !== 'undefined' && gapBannerSource) {
+        gapBannerSource.textContent = `Showing Variant ${(v.name || v.id || '').trim()}`;
+      }
+      if (typeof gapHighlightBanner !== 'undefined' && gapHighlightBanner) {
+        gapHighlightBanner.hidden = false;
+      }
+    });
+  });
 }
 
 /* ── Gap Analysis ── */

@@ -127,6 +127,33 @@ _AUTOMATION_SCHEMA = {
     "required": ["step_scores", "overall_recommendation"],
 }
 
+_VARIANTS_SCHEMA = {
+    "type": "array",
+    "description": (
+        "Process variants — how this workflow actually executes across the standard "
+        "happy path and exception/escalation scenarios. Always include a Variant A "
+        "(standard path) and 2-4 additional variants for exceptions described in the "
+        "document. frequency_pct across all variants MUST sum to exactly 100. "
+        "Return an EMPTY array if as_is_steps has fewer than 3 steps."
+    ),
+    "items": {
+        "type": "object",
+        "properties": {
+            "id":                {"type": "string", "description": "variant_a, variant_b, variant_c, ..."},
+            "name":              {"type": "string", "description": "Short label (≤4 words), e.g. 'Standard Path' or 'AML Flag Path'."},
+            "description":       {"type": "string", "description": "One short sentence (≤16 words)."},
+            "frequency_pct":     {"type": "integer", "description": "Estimated 0-100 of cases. ALL variants sum to 100. Variant A is highest."},
+            "steps":             {"type": "array", "items": {"type": "string"}, "description": "Ordered step name strings — match document or as_is_steps names."},
+            "divergence_point":  {"type": ["string", "null"], "description": "Step name where this variant splits from Variant A. null for Variant A."},
+            "divergence_reason": {"type": ["string", "null"], "description": "Trigger for this variant (≤16 words). null for Variant A."},
+            "avg_tat":           {"type": "string", "description": "Avg turnaround, e.g. '5.2 days', '4 hrs'."},
+            "sla_status":        {"type": "string", "enum": ["ok", "breach"]},
+            "node_ids":          {"type": "array", "items": {"type": "string"}, "description": "Graph node ids involved (must match actual extracted node ids)."},
+        },
+        "required": ["id", "name", "description", "frequency_pct", "steps", "divergence_point", "divergence_reason", "avg_tat", "sla_status", "node_ids"],
+    },
+}
+
 WORKFLOW_BUNDLE_TOOL = {
     "name": "generate_workflow_bundle",
     "description": "Generate AS-IS/TO-BE workflows together with ROI estimate and per-step automation scoring in a single response.",
@@ -201,8 +228,9 @@ WORKFLOW_BUNDLE_TOOL = {
                         "source_node_ids": {"type": "array", "items": {"type": "string"}},
                         "roi":             _ROI_SCHEMA,
                         "automation":      _AUTOMATION_SCHEMA,
+                        "variants":        _VARIANTS_SCHEMA,
                     },
-                    "required": ["id", "title", "description", "trigger", "sla_target", "current_avg", "sla_compliance_rate", "complexity", "as_is_steps", "to_be_steps", "benefits", "source_node_ids", "roi", "automation"],
+                    "required": ["id", "title", "description", "trigger", "sla_target", "current_avg", "sla_compliance_rate", "complexity", "as_is_steps", "to_be_steps", "benefits", "source_node_ids", "roi", "automation", "variants"],
                 },
             },
         },
@@ -382,7 +410,9 @@ WORKFLOW_BUNDLE_SYSTEM = (
     "as AS-IS vs TO-BE comparisons AND, for each workflow, also produce:\n"
     "  (a) ROI estimate — the realistic ANNUAL USD VALUE of automating it, with banking-industry "
     "assumptions used to derive the figure.\n"
-    "  (b) Automation score per AS-IS step — score 0-10 with level, reason, and suggested approach.\n\n"
+    "  (b) Automation score per AS-IS step — score 0-10 with level, reason, and suggested approach.\n"
+    "  (c) Process variants — how this workflow actually executes across the standard happy "
+    "path and exception/escalation scenarios.\n\n"
     "── WORKFLOW RULES ──\n"
     "- as_is_steps reflect what the document describes today, using any SLA and performance data "
     "found in the text. Set sla_status to 'breach' if current_avg exceeds sla_target, 'warn' if "
@@ -414,6 +444,22 @@ WORKFLOW_BUNDLE_SYSTEM = (
     "- Map automation_level from the score: 8-10 → 'High', 5-7 → 'Medium', 0-4 → 'Low'.\n"
     "- Each reason is ONE sentence. Each automation.step_scores entry's step_number MUST match a "
     "step_number that exists on the same workflow's as_is_steps.\n\n"
+    "── PROCESS VARIANTS RULES ──\n"
+    "- Variant A is the standard happy path with no exceptions or escalations: id='variant_a', "
+    "divergence_point=null, divergence_reason=null. Variant A is ALWAYS the most frequent.\n"
+    "- Generate 2-4 additional variants based on exceptions, escalations, and edge cases described "
+    "in the document (e.g. AML flag raised, loan amount exceeds threshold, missing documents, "
+    "manual override, committee escalation).\n"
+    "- frequency_pct values across ALL variants MUST sum to exactly 100.\n"
+    "- Estimate frequency from document language: 'in most cases' → 60-70%, 'occasionally' → 10-20%, "
+    "'rarely' → 1-5%. Variant A typically 55-80%.\n"
+    "- 'steps' is an ordered list of step name strings — should match step names from the document "
+    "or the workflow's own as_is_steps names where applicable.\n"
+    "- 'node_ids' lists the graph node ids involved in this variant — must reference actual node "
+    "ids from the extracted graph. Empty list is acceptable only when no specific nodes apply.\n"
+    "- Set sla_status='breach' if the variant's avg_tat clearly exceeds the workflow's sla_target; "
+    "'ok' otherwise.\n"
+    "- IF the workflow has fewer than 3 as_is_steps, return an EMPTY variants array.\n\n"
     "── BREVITY RULES (output length matters — long outputs slow the response) ──\n"
     "- workflow.description: 1-2 short sentences (≤ 30 words total).\n"
     "- as_is_steps[].description and to_be_steps[].description: ≤ 18 words each.\n"
@@ -424,7 +470,11 @@ WORKFLOW_BUNDLE_SYSTEM = (
     "- roi.methodology_note: ≤ 30 words total.\n"
     "- automation.step_scores[].reason: ≤ 16 words each.\n"
     "- automation.step_scores[].suggested_approach: ≤ 6 words (e.g. 'Rule-based RPA', 'AI-assisted review', 'Human required').\n"
-    "- automation.overall_recommendation: 1 short sentence (≤ 22 words).\n\n"
+    "- automation.overall_recommendation: 1 short sentence (≤ 22 words).\n"
+    "- variants[].name: ≤ 4 words.\n"
+    "- variants[].description: ≤ 16 words.\n"
+    "- variants[].divergence_reason: ≤ 16 words. null for Variant A.\n"
+    "- variants[].avg_tat: short phrase (e.g. '5.2 days', '4 hrs').\n\n"
     "Always call the generate_workflow_bundle tool."
 )
 

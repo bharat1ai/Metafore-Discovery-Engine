@@ -147,6 +147,10 @@ async def generate_workflows_endpoint(payload: WorkflowRequest):
                     if ref.get("node_id") and ref["node_id"] not in valid_ids:
                         ref["node_id"] = None
                         ref["node_label"] = None
+        # Validate variant.node_ids and enrich with live SQLite data.
+        for v in (wf.get("variants") or []):
+            v["node_ids"] = [nid for nid in (v.get("node_ids") or []) if nid in valid_ids]
+        _enrich_variants_with_live_data(wf)
 
     if doc_hash:
         _workflow_cache[doc_hash] = workflows
@@ -571,6 +575,79 @@ def _parse_iso(ts):
         return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
+
+
+def _match_live_step_for_name(name: str) -> dict | None:
+    """Find the live SQLite process_steps row whose step_name matches `name`.
+
+    Match strategy: case-insensitive exact, then substring fallback. Returns the
+    full step row plus computed live stats (breach_count, breach_rate_pct,
+    role_mismatch_count, etc.) — same shape as /api/data/step/{step_name}.
+    """
+    if not name:
+        return None
+    if not (db.has_table("process_steps") and db.row_count("process_steps") > 0):
+        return None
+    try:
+        cfg_rows = db.query("SELECT * FROM process_steps")
+    except Exception:
+        return None
+
+    target = name.strip().lower()
+    matched_cfg = None
+    for r in cfg_rows:
+        if (r.get("step_name") or "").strip().lower() == target:
+            matched_cfg = r
+            break
+    if matched_cfg is None:
+        for r in cfg_rows:
+            sn = (r.get("step_name") or "").strip().lower()
+            if sn and (sn in target or target in sn):
+                matched_cfg = r
+                break
+    if matched_cfg is None:
+        return None
+
+    try:
+        execs = db.query("SELECT * FROM step_executions WHERE step_name = ?", (matched_cfg["step_name"],))
+    except Exception:
+        execs = []
+
+    breached = sum(1 for e in execs if e.get("status") == "breached")
+    role_mismatch = sum(
+        1 for e in execs
+        if e.get("actual_role") and e.get("actual_role") != matched_cfg.get("expected_role")
+    )
+    total = len(execs)
+    return {
+        **matched_cfg,
+        "execution_count":     total,
+        "breach_count":        breached,
+        "breach_rate_pct":     round(breached / total * 100, 1) if total else 0.0,
+        "role_mismatch_count": role_mismatch,
+    }
+
+
+def _enrich_variants_with_live_data(workflow: dict) -> None:
+    """Annotate each variant with data_source ('live' | 'estimated') and, when live,
+    expose the actual breach rate from SQLite alongside Claude's frequency_pct.
+
+    Does NOT mutate frequency_pct (would break sum-to-100). Frontend can show both
+    figures so the customer sees Claude estimate vs operational reality.
+    """
+    for v in (workflow.get("variants") or []):
+        div = (v.get("divergence_point") or "").strip()
+        if not div:
+            # Variant A baseline — no divergence step to look up.
+            v["data_source"] = "estimated"
+            continue
+        live = _match_live_step_for_name(div)
+        if live and live.get("execution_count"):
+            v["data_source"] = "live"
+            v["live_breach_rate_pct"] = live.get("breach_rate_pct")
+            v["live_step_name"]       = live.get("step_name")
+        else:
+            v["data_source"] = "estimated"
 
 
 def _build_live_nlq_context() -> str:
