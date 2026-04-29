@@ -822,16 +822,10 @@ function renderWorkflows(workflows) {
           </div>
         </div>
         ${summaryRow}
-        <div class="wf-roi-headline-block" data-roi-for="${wf.id}">
-          <div class="wf-roi-headline-label">Estimated annual value</div>
-          <div class="wf-roi-headline-value wf-roi-loading">Calculating…</div>
-          <div class="wf-roi-headline-basis"></div>
-        </div>
+        ${_roiSection(wf)}
         ${_benefitsStrip(wf.benefits)}
-        <details class="wf-roi-assumptions" data-roi-assump-for="${wf.id}" hidden>
-          <summary><span class="wf-roi-assump-summary-label">Assumptions used</span><span class="wf-roi-assump-count"></span></summary>
-          <div class="wf-roi-assump-body"></div>
-        </details>
+        ${_roiAssumptions(wf)}
+        ${_autoScoreSection(wf)}
       </div>`;
 
     card.querySelector('.workflow-card-header').addEventListener('click', () => {
@@ -847,62 +841,116 @@ function renderWorkflows(workflows) {
 
     workflowList.appendChild(card);
   });
-
-  if (currentGraphId && workflows.length > 0) {
-    _fetchRoi(currentGraphId);
-  }
 }
 
-async function _fetchRoi(graphId) {
-  try {
-    const res = await fetch(`${API_BASE}/api/roi/calculate`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ graph_id: graphId }),
-    });
-    if (!res.ok) throw new Error(`ROI ${res.status}`);
-    const data = await res.json();
-    _renderRoiResults(data.roi || {});
-  } catch (e) {
-    console.warn('ROI fetch failed:', e);
-    document.querySelectorAll('.wf-roi-headline-value.wf-roi-loading').forEach(el => {
-      el.textContent = 'Unavailable';
-      el.classList.remove('wf-roi-loading');
-      el.classList.add('wf-roi-error');
-    });
+/* ROI + Automation rendering — data is embedded in each workflow object
+   (single Sonnet call generates everything; no separate fetches). */
+
+function _roiSection(wf) {
+  const roi = wf.roi;
+  if (!roi || !roi.headline_value_display) {
+    return `
+      <div class="wf-roi-headline-block">
+        <div class="wf-roi-headline-label">Estimated annual value</div>
+        <div class="wf-roi-headline-value wf-roi-error">Unavailable</div>
+      </div>`;
   }
+  return `
+    <div class="wf-roi-headline-block">
+      <div class="wf-roi-headline-label">Estimated annual value</div>
+      <div class="wf-roi-headline-value">${roi.headline_value_display}</div>
+      <div class="wf-roi-headline-basis">${roi.headline_basis || ''}</div>
+    </div>`;
 }
 
-function _renderRoiResults(roiByWorkflow) {
-  Object.entries(roiByWorkflow).forEach(([wfId, roi]) => {
-    const block = document.querySelector(`[data-roi-for="${wfId}"]`);
-    if (block) {
-      const valEl   = block.querySelector('.wf-roi-headline-value');
-      const basisEl = block.querySelector('.wf-roi-headline-basis');
-      valEl.textContent = roi.headline_value_display || '—';
-      valEl.classList.remove('wf-roi-loading');
-      basisEl.textContent = roi.headline_basis || '';
-    }
-    const assump = document.querySelector(`[data-roi-assump-for="${wfId}"]`);
-    if (assump) {
-      const body  = assump.querySelector('.wf-roi-assump-body');
-      const count = assump.querySelector('.wf-roi-assump-count');
-      const items = roi.assumptions || [];
-      body.innerHTML = items.map(a => `
-        <div class="wf-roi-assump-item">
-          <div class="wf-roi-assump-row">
-            <span class="wf-roi-assump-label">${a.label || ''}</span>
-            <span class="wf-roi-assump-value">${a.value || ''}</span>
-          </div>
-          <div class="wf-roi-assump-rationale">${a.rationale || ''}</div>
+function _roiAssumptions(wf) {
+  const roi = wf.roi;
+  const items = (roi && roi.assumptions) || [];
+  if (!items.length) return '';
+  const itemsHtml = items.map(a => `
+    <div class="wf-roi-assump-item">
+      <div class="wf-roi-assump-row">
+        <span class="wf-roi-assump-label">${a.label || ''}</span>
+        <span class="wf-roi-assump-value">${a.value || ''}</span>
+      </div>
+      <div class="wf-roi-assump-rationale">${a.rationale || ''}</div>
+    </div>`).join('');
+  const methodHtml = roi.methodology_note
+    ? `<div class="wf-roi-method-note"><span class="wf-roi-method-label">How it's calculated</span> ${roi.methodology_note}</div>`
+    : '';
+  return `
+    <details class="wf-roi-assumptions">
+      <summary><span class="wf-roi-assump-summary-label">Assumptions used</span><span class="wf-roi-assump-count"> (${items.length})</span></summary>
+      <div class="wf-roi-assump-body">${itemsHtml}${methodHtml}</div>
+    </details>`;
+}
+
+function _autoScoreTier(score) {
+  if (score >= 8) return 'high';
+  if (score >= 5) return 'med';
+  return 'low';
+}
+
+function _autoScoreSection(wf) {
+  const auto = wf.automation;
+  if (!auto || !(auto.step_scores || []).length) {
+    return `
+      <div class="wf-auto-score-block">
+        <div class="wf-auto-score-header">
+          <span class="wf-auto-score-label">Automation Scoring</span>
+          <span class="wf-auto-score-status wf-auto-score-error">Unavailable</span>
         </div>
-      `).join('') + (roi.methodology_note
-        ? `<div class="wf-roi-method-note"><span class="wf-roi-method-label">How it's calculated</span> ${roi.methodology_note}</div>`
-        : '');
-      if (count) count.textContent = items.length ? ` (${items.length})` : '';
-      assump.hidden = false;
-    }
-  });
+      </div>`;
+  }
+  const stepNames = {};
+  (wf.as_is_steps || []).forEach(s => { stepNames[s.step_number] = s.name || ''; });
+
+  const rowsHtml = auto.step_scores.map(s => {
+    const tier = _autoScoreTier(s.automation_score || 0);
+    const fill = Math.max(0, Math.min(100, (s.automation_score || 0) * 10));
+    const stepName = stepNames[s.step_number] || `Step ${s.step_number}`;
+    return `
+      <tr class="wf-auto-score-row wf-as-tier-${tier}">
+        <td class="wf-as-col-num">${s.step_number}</td>
+        <td>
+          <div class="wf-as-step-name">${stepName}</div>
+          <div class="wf-as-reason">${s.reason || ''}</div>
+        </td>
+        <td class="wf-as-col-score">
+          <div class="wf-as-bar"><div class="wf-as-bar-fill wf-as-tier-${tier}" style="width:${fill}%"></div></div>
+          <div class="wf-as-bar-num">${s.automation_score}/10</div>
+        </td>
+        <td class="wf-as-col-level"><span class="wf-as-level-badge wf-as-tier-${tier}">${s.automation_level || '—'}</span></td>
+        <td class="wf-as-approach">${s.suggested_approach || '—'}</td>
+      </tr>`;
+  }).join('');
+
+  const recHtml = auto.overall_recommendation
+    ? `<div class="wf-auto-score-recommendation">${auto.overall_recommendation}</div>`
+    : '';
+
+  return `
+    <div class="wf-auto-score-block">
+      <div class="wf-auto-score-header">
+        <span class="wf-auto-score-label">Automation Scoring</span>
+      </div>
+      <div class="wf-auto-score-body">
+        <table class="wf-auto-score-table">
+          <thead>
+            <tr><th class="wf-as-col-num">#</th><th>Step</th><th class="wf-as-col-score">Score</th><th class="wf-as-col-level">Level</th><th>Approach</th></tr>
+          </thead>
+          <tbody class="wf-auto-score-tbody">${rowsHtml}</tbody>
+        </table>
+        <div class="wf-auto-score-summary">
+          <div class="wf-auto-score-stats">
+            <div class="wf-auto-score-stat"><span class="wf-auto-score-stat-val">${auto.average_score}/10</span><span class="wf-auto-score-stat-label">Avg score</span></div>
+            <div class="wf-auto-score-stat"><span class="wf-auto-score-stat-val">${auto.automatable_percentage}%</span><span class="wf-auto-score-stat-label">Automatable</span></div>
+            <div class="wf-auto-score-stat"><span class="wf-auto-score-stat-val">${auto.step_count}</span><span class="wf-auto-score-stat-label">Steps scored</span></div>
+          </div>
+          ${recHtml}
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ── Gap Analysis ── */

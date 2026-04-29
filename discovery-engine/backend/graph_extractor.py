@@ -78,9 +78,58 @@ _ROLE_SYS_SCHEMA = {
     "required": ["node_id", "node_label"],
 }
 
-WORKFLOW_TOOL = {
-    "name": "suggest_workflows",
-    "description": "Suggest practical as-is / to-be automation workflows grounded in the knowledge graph.",
+_ROI_SCHEMA = {
+    "type": "object",
+    "description": "Estimated annual ROI of automating this workflow, with banking-industry assumptions.",
+    "properties": {
+        "headline_value_usd":     {"type": "integer", "description": "Estimated annual value in whole USD (e.g. 2400000 for $2.4M)."},
+        "headline_value_display": {"type": "string", "description": "Formatted figure with units, e.g. '$2.4M / year'."},
+        "headline_basis":         {"type": "string", "description": "One sentence: what primarily drives this number."},
+        "assumptions": {
+            "type": "array",
+            "description": "4-7 banking-industry assumptions used to derive the headline value.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "label":     {"type": "string", "description": "Short name, e.g. 'Loaded staff cost'."},
+                    "value":     {"type": "string", "description": "The figure used, e.g. '$85/hr fully loaded'."},
+                    "rationale": {"type": "string", "description": "One sentence on why this is realistic for retail/commercial banking."},
+                },
+                "required": ["label", "value", "rationale"],
+            },
+        },
+        "methodology_note": {"type": "string", "description": "1-2 sentences on how the headline figure was derived from the assumptions."},
+    },
+    "required": ["headline_value_usd", "headline_value_display", "headline_basis", "assumptions", "methodology_note"],
+}
+
+_AUTOMATION_SCHEMA = {
+    "type": "object",
+    "description": "Per-step automation potential scoring plus an overall recommendation.",
+    "properties": {
+        "step_scores": {
+            "type": "array",
+            "description": "One scoring entry per AS-IS step. step_number must match the as_is_steps.step_number on the same workflow.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "step_number":        {"type": "integer"},
+                    "automation_score":   {"type": "integer", "description": "0-10. 8-10 fully automatable, 5-7 AI-assistable, 0-4 needs a human."},
+                    "automation_level":   {"type": "string", "enum": ["High", "Medium", "Low"]},
+                    "reason":             {"type": "string", "description": "One sentence explaining the score."},
+                    "suggested_approach": {"type": "string", "description": "e.g. 'Rule-based RPA', 'AI-assisted', 'Full automation', 'Human required'."},
+                },
+                "required": ["step_number", "automation_score", "automation_level", "reason", "suggested_approach"],
+            },
+        },
+        "overall_recommendation": {"type": "string", "description": "One sentence overall guidance for automating this workflow."},
+    },
+    "required": ["step_scores", "overall_recommendation"],
+}
+
+WORKFLOW_BUNDLE_TOOL = {
+    "name": "generate_workflow_bundle",
+    "description": "Generate AS-IS/TO-BE workflows together with ROI estimate and per-step automation scoring in a single response.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -150,8 +199,10 @@ WORKFLOW_TOOL = {
                             "required": ["time_saved_per_transaction", "extra_capacity", "revenue_or_cost_impact", "implementation_effort"],
                         },
                         "source_node_ids": {"type": "array", "items": {"type": "string"}},
+                        "roi":             _ROI_SCHEMA,
+                        "automation":      _AUTOMATION_SCHEMA,
                     },
-                    "required": ["id", "title", "description", "trigger", "sla_target", "current_avg", "sla_compliance_rate", "complexity", "as_is_steps", "to_be_steps", "benefits", "source_node_ids"],
+                    "required": ["id", "title", "description", "trigger", "sla_target", "current_avg", "sla_compliance_rate", "complexity", "as_is_steps", "to_be_steps", "benefits", "source_node_ids", "roi", "automation"],
                 },
             },
         },
@@ -207,102 +258,6 @@ OBJECT_MODEL_TOOL = {
         "required": ["pydantic_code", "json_schema", "summary"],
     },
 }
-
-ROI_TOOL = {
-    "name": "calculate_workflow_roi",
-    "description": "Calculate the estimated annual USD value of automating a banking workflow, with explicit assumptions.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "headline_value_usd": {
-                "type": "integer",
-                "description": "Estimated annual value in whole USD (e.g. 2400000 for $2.4M).",
-            },
-            "headline_value_display": {
-                "type": "string",
-                "description": "Formatted headline figure with units, e.g. '$2.4M / year' or '$845K / year'.",
-            },
-            "headline_basis": {
-                "type": "string",
-                "description": "One sentence stating what primarily drives this number (e.g. 'FTE time freed on credit underwriting').",
-            },
-            "assumptions": {
-                "type": "array",
-                "description": "4-7 banking-industry assumptions used to derive the headline value.",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "label":     {"type": "string", "description": "Short name, e.g. 'Loaded staff cost' or 'Annual transaction volume'."},
-                        "value":     {"type": "string", "description": "The figure used, e.g. '$85/hr fully loaded' or '12,000 loan applications/yr'."},
-                        "rationale": {"type": "string", "description": "One sentence on why this is realistic for retail/commercial banking."},
-                    },
-                    "required": ["label", "value", "rationale"],
-                },
-            },
-            "methodology_note": {
-                "type": "string",
-                "description": "1-2 sentences describing how the headline figure was calculated from the assumptions.",
-            },
-        },
-        "required": ["headline_value_usd", "headline_value_display", "headline_basis", "assumptions", "methodology_note"],
-    },
-}
-
-ROI_SYSTEM = (
-    "You are a banking automation ROI analyst. "
-    "Given an automation workflow and its supporting graph context, estimate the realistic ANNUAL "
-    "DOLLAR VALUE the bank would capture by automating it, and state the banking-industry "
-    "assumptions you used to get there.\n\n"
-    "Use realistic mid-2020s benchmarks for retail / commercial banking:\n"
-    "- Loaded staff cost: $60-95/hr for ops & back-office, $120-180/hr for credit, risk, compliance roles\n"
-    "- Average commercial loan value: $250K-$2M; retail loan: $25K-$80K; SME loan: $50K-$500K\n"
-    "- Net Interest Margin (NIM): 2.5-3.5% for US/EU commercial banks\n"
-    "- FTE productive hours: ~1,800/year per FTE\n"
-    "- KYC/onboarding volume: a mid-size commercial bank processes 5K-50K applications/yr\n"
-    "- Cost of regulatory breaches, opportunity cost on capital — only mention if material\n\n"
-    "Rules:\n"
-    "- Be concrete, conservative, and explainable. The headline figure must reconcile with the assumptions.\n"
-    "- If transaction volume is uncertain, state your volume assumption explicitly as one of the assumptions.\n"
-    "- Prefer FTE-time-freed valuations when SLA breaches are the main driver; prefer NIM-based revenue capture when faster cycle time unlocks more lending.\n"
-    "- Do not over-claim. A single workflow rarely yields >$10M/yr in a single bank — flag if your number exceeds that.\n"
-    "Always call the calculate_workflow_roi tool."
-)
-
-
-def calculate_workflow_roi(workflow: dict, graph: dict) -> dict:
-    nodes = graph.get("nodes", [])
-    policies = [n for n in nodes if n.get("type") == "Policy"]
-    roles    = [n for n in nodes if n.get("type") == "Role"]
-
-    policy_lines = "\n".join(
-        f"- {p['label']}: {p.get('description','')[:120]}" for p in policies[:8]
-    ) or "(none extracted)"
-    role_lines = ", ".join(r["label"] for r in roles[:8]) or "(none extracted)"
-
-    benefits = workflow.get("benefits", {}) or {}
-    as_is_n  = len(workflow.get("as_is_steps", []))
-    to_be_n  = len(workflow.get("to_be_steps", []))
-
-    prompt = (
-        f"WORKFLOW: {workflow.get('title','')}\n"
-        f"Description: {workflow.get('description','')}\n"
-        f"Complexity: {workflow.get('complexity','')} | "
-        f"Current avg: {workflow.get('current_avg','')} | "
-        f"SLA target: {workflow.get('sla_target','')} | "
-        f"Compliance: {workflow.get('sla_compliance_rate','')}\n"
-        f"Steps: {as_is_n} as-is, {to_be_n} to-be\n\n"
-        f"DERIVED BENEFITS (already estimated upstream):\n"
-        f"- Time saved per transaction: {benefits.get('time_saved_per_transaction','—')}\n"
-        f"- Extra capacity unlocked: {benefits.get('extra_capacity','—')}\n"
-        f"- Revenue / cost impact note: {benefits.get('revenue_or_cost_impact','—')}\n"
-        f"- Implementation effort: {benefits.get('implementation_effort','—')}\n\n"
-        f"GOVERNING POLICIES (use SLAs from these):\n{policy_lines}\n\n"
-        f"ROLES INVOLVED: {role_lines}\n\n"
-        "Calculate the headline annual USD value of automating this workflow, "
-        "and list 4-7 banking assumptions you used to derive it."
-    )
-    return _call_tool(ROI_SYSTEM, prompt, ROI_TOOL, model=HAIKU, max_tokens=1500)
-
 
 PULSE_AI_TOOL = {
     "name": "generate_pulse_recommendations",
@@ -421,23 +376,56 @@ Extract 15–20 nodes and 15–20 edges covering the most important entities and
 Every node ID referenced in an edge must exist in the nodes array.
 """
 
-WORKFLOW_SYSTEM = (
-    "You are an enterprise process automation expert. Given a Knowledge Graph and the source "
-    "document text, suggest 3–5 practical workflows as AS-IS vs TO-BE comparisons. "
-    "Rules:\n"
-    "- as_is_steps: reflect what the document describes today, using any SLA and performance data "
+WORKFLOW_BUNDLE_SYSTEM = (
+    "You are an enterprise process automation expert and banking ROI analyst. "
+    "Given a Knowledge Graph and the source document text, generate 3-5 practical workflows "
+    "as AS-IS vs TO-BE comparisons AND, for each workflow, also produce:\n"
+    "  (a) ROI estimate — the realistic ANNUAL USD VALUE of automating it, with banking-industry "
+    "assumptions used to derive the figure.\n"
+    "  (b) Automation score per AS-IS step — score 0-10 with level, reason, and suggested approach.\n\n"
+    "── WORKFLOW RULES ──\n"
+    "- as_is_steps reflect what the document describes today, using any SLA and performance data "
     "found in the text. Set sla_status to 'breach' if current_avg exceeds sla_target, 'warn' if "
     "within 20% of breaching, 'ok' otherwise.\n"
-    "- to_be_steps: same steps with automation improvements on breaching/at-risk steps. "
+    "- to_be_steps are the same steps with automation improvements on breaching/at-risk steps. "
     "Unchanged steps use changed: false and empty improvement_note.\n"
     "- benefits: use actual numbers from the document where present.\n"
-    "- IMPORTANT: You MUST provide a non-empty string for every field — sla_target, current_avg, "
-    "sla_compliance_rate, estimated_time, and all benefits fields. If the document does not state "
-    "exact figures, estimate realistic values based on typical industry benchmarks for this process "
-    "type. Never leave a field blank or return '—'.\n"
+    "- Provide a non-empty string for every numeric field (sla_target, current_avg, "
+    "sla_compliance_rate, estimated_time, and all benefits fields). If the document does not state "
+    "exact figures, estimate from typical industry benchmarks. Never leave a field blank or return '—'.\n"
     "- Never invent steps not grounded in the extracted graph nodes.\n"
-    "- Every responsible_role and system_used must reference actual node IDs from the graph, or null.\n"
-    "Always call the suggest_workflows tool."
+    "- Every responsible_role and system_used must reference actual node IDs from the graph, or null.\n\n"
+    "── ROI RULES (mid-2020s banking benchmarks) ──\n"
+    "- Loaded staff cost: $60-95/hr ops & back-office; $120-180/hr credit, risk, compliance.\n"
+    "- Avg loan value: commercial $250K-$2M; retail $25K-$80K; SME $50K-$500K.\n"
+    "- Net Interest Margin (NIM): 2.5-3.5% for US/EU commercial banks.\n"
+    "- FTE productive hours: ~1,800/yr.\n"
+    "- KYC/onboarding volume: 5K-50K applications/yr for a mid-size commercial bank.\n"
+    "- Be concrete and conservative. The headline figure must reconcile with the assumptions.\n"
+    "- List 4-7 assumptions (label / value / rationale). State your transaction-volume assumption explicitly.\n"
+    "- Prefer FTE-time-freed valuation when SLA breaches drive value; prefer NIM-based revenue capture "
+    "when faster cycle time unlocks more lending.\n"
+    "- A single workflow rarely yields >$10M/yr in one bank — flag if your number exceeds that.\n\n"
+    "── AUTOMATION SCORE RULES ──\n"
+    "- 8-10 (High):   Deterministic, rule-driven, structured I/O. Suggest 'Rule-based RPA' or 'Full automation'.\n"
+    "- 5-7  (Medium): Semi-structured, judgement-light, pattern-based. Suggest 'AI-assisted'.\n"
+    "- 0-4  (Low):    Requires human judgement, negotiation, ambiguity, or relationship management. "
+    "Suggest 'Human required' or 'Human-in-the-loop'.\n"
+    "- Map automation_level from the score: 8-10 → 'High', 5-7 → 'Medium', 0-4 → 'Low'.\n"
+    "- Each reason is ONE sentence. Each automation.step_scores entry's step_number MUST match a "
+    "step_number that exists on the same workflow's as_is_steps.\n\n"
+    "── BREVITY RULES (output length matters — long outputs slow the response) ──\n"
+    "- workflow.description: 1-2 short sentences (≤ 30 words total).\n"
+    "- as_is_steps[].description and to_be_steps[].description: ≤ 18 words each.\n"
+    "- improvement_note: ≤ 12 words. Empty string when changed=false.\n"
+    "- benefits.* fields: short phrases, not sentences (e.g. '4 hrs/loan', '+150 loans/yr').\n"
+    "- roi.headline_basis: ≤ 16 words.\n"
+    "- roi.assumptions[].rationale: ≤ 18 words each.\n"
+    "- roi.methodology_note: ≤ 30 words total.\n"
+    "- automation.step_scores[].reason: ≤ 16 words each.\n"
+    "- automation.step_scores[].suggested_approach: ≤ 6 words (e.g. 'Rule-based RPA', 'AI-assisted review', 'Human required').\n"
+    "- automation.overall_recommendation: 1 short sentence (≤ 22 words).\n\n"
+    "Always call the generate_workflow_bundle tool."
 )
 
 NLQ_SYSTEM = (
@@ -502,14 +490,25 @@ SUMMARY: 2–3 sentences describing the domain model and its key entities.
 
 # ── Core call ────────────────────────────────────────────────────────────────
 
-def _call_tool(system: str, prompt: str, tool: dict, model: str = "claude-sonnet-4-6", max_tokens: int = 8096) -> dict:
-    """Call Claude with tool_choice forced to `tool`, return the tool input dict."""
+def _call_tool(system: str, prompt: str, tool: dict, model: str = "claude-sonnet-4-6", max_tokens: int = 8096, cache: bool = False) -> dict:
+    """Call Claude with tool_choice forced to `tool`, return the tool input dict.
+
+    When cache=True, the system prompt and tool schema are marked as ephemeral
+    cache breakpoints — repeat calls within ~5 min reuse the cached prefix
+    (faster TTFT + cheaper input tokens).
+    """
     client = _get_client()
+    if cache:
+        system_param = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+        tools_param  = [{**tool, "cache_control": {"type": "ephemeral"}}]
+    else:
+        system_param = system
+        tools_param  = [tool]
     response = client.messages.create(
         model=model,
         max_tokens=max_tokens,
-        system=system,
-        tools=[tool],
+        system=system_param,
+        tools=tools_param,
         tool_choice={"type": "tool", "name": tool["name"]},
         messages=[{"role": "user", "content": prompt}],
     )
@@ -559,27 +558,77 @@ def extract_graphs(documents: list[tuple[str, str]]) -> dict:
 
 
 def _build_workflow_prompt(graph: dict, doc_text: str = "") -> str:
+    nodes = graph.get("nodes", [])
     node_lines = "\n".join(
         f"{n['id']} | {n['label']} | {n.get('type', '')} | {n.get('description', '')}"
-        for n in graph.get("nodes", [])
+        for n in nodes
     )
     edge_lines = "\n".join(
         f"{e.get('source', '')} --[{e.get('label', '')}]--> {e.get('target', '')}"
         for e in graph.get("edges", [])
     )
+    policies = [n for n in nodes if n.get("type") == "Policy"]
+    roles    = [n for n in nodes if n.get("type") == "Role"]
+    policy_lines = "\n".join(f"- {p['label']}: {p.get('description','')[:120]}" for p in policies[:8]) or "(none)"
+    role_lines   = ", ".join(r["label"] for r in roles[:8]) or "(none)"
+
     doc_section = f"\n\n=== SOURCE DOCUMENT (use for SLA data and timings) ===\n{doc_text[:8000]}\n===" if doc_text else ""
     return (
         f"NODES:\n{node_lines}\n\nEDGES:\n{edge_lines}{doc_section}\n\n"
-        "Suggest 3–5 practical automation workflows. "
-        "All numeric fields (sla_target, current_avg, sla_compliance_rate, estimated_time, "
-        "benefits) MUST be non-empty — extract from the document or estimate from industry benchmarks."
+        f"POLICIES (use SLAs from these for ROI): \n{policy_lines}\n\n"
+        f"ROLES INVOLVED (cost basis for ROI): {role_lines}\n\n"
+        "Generate 3-5 practical automation workflows. For each workflow, populate:\n"
+        "  - the workflow itself (AS-IS / TO-BE / benefits)\n"
+        "  - roi: headline annual USD value with 4-7 banking assumptions\n"
+        "  - automation: 0-10 score for every AS-IS step plus a one-sentence overall recommendation\n"
+        "All numeric fields MUST be non-empty — extract from the document or estimate from "
+        "industry benchmarks. Each automation.step_scores entry must reference a step_number "
+        "that exists on the same workflow's as_is_steps."
     )
 
 
+def _post_process_workflow_bundle(workflows: list[dict]) -> list[dict]:
+    """Validate and enrich each workflow with computed automation aggregates."""
+    for wf in workflows:
+        as_is_steps = wf.get("as_is_steps", []) or []
+        valid_step_numbers = {s.get("step_number") for s in as_is_steps}
+
+        automation = wf.get("automation") or {}
+        scores = [s for s in (automation.get("step_scores") or []) if s.get("step_number") in valid_step_numbers]
+
+        if scores:
+            avg = sum(s.get("automation_score", 0) for s in scores) / len(scores)
+            automatable = sum(1 for s in scores if s.get("automation_score", 0) >= 5)
+            pct = round(automatable / len(scores) * 100)
+        else:
+            avg, pct = 0.0, 0
+
+        wf["automation"] = {
+            "step_scores":            scores,
+            "average_score":          round(avg, 1),
+            "automatable_percentage": pct,
+            "overall_recommendation": automation.get("overall_recommendation", ""),
+            "step_count":             len(scores),
+        }
+    return workflows
+
+
 def generate_workflows(graph: dict, doc_text: str = "") -> list[dict]:
+    """Single Sonnet call: returns workflows with embedded ROI and automation scoring.
+
+    System prompt + tool schema are cached (ephemeral) — second 'Generate'
+    within ~5 min skips re-encoding the static prefix.
+    """
     prompt = _build_workflow_prompt(graph, doc_text)
-    result = _call_tool(WORKFLOW_SYSTEM, prompt, WORKFLOW_TOOL, max_tokens=16000)
-    return result.get("workflows", [])
+    result = _call_tool(
+        WORKFLOW_BUNDLE_SYSTEM,
+        prompt,
+        WORKFLOW_BUNDLE_TOOL,
+        model=SONNET,
+        max_tokens=32000,
+        cache=True,
+    )
+    return _post_process_workflow_bundle(result.get("workflows", []))
 
 
 def generate_object_model(graph: dict) -> dict:
