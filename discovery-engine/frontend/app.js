@@ -82,6 +82,117 @@ async function fetchLiveSteps(force = false) {
   }
 }
 
+/* Multi-document graph: source chips above the graph + cross-doc insights panel. */
+let _graphSourceFilter = null;   // active filename filter, or null
+
+const CHIP_COLORS = [
+  { bg: '#E6F4F4', border: '#0a9090', fg: '#024F4F' },  // brand
+  { bg: '#FED7AA', border: '#EA580C', fg: '#9A3412' },  // role-orange
+  { bg: '#BFDBFE', border: '#3B82F6', fg: '#1D4ED8' },  // system-blue
+  { bg: '#DDD6FE', border: '#7C3AED', fg: '#5B21B6' },  // dataentity-purple
+  { bg: '#FEF08A', border: '#CA8A04', fg: '#854D0E' },  // event-yellow
+  { bg: '#FECACA', border: '#EF4444', fg: '#991B1B' },  // policy-red
+];
+
+async function fetchAndRenderGraphSources(graphId) {
+  const wrap   = document.getElementById('graph-source-chips');
+  const labelE = document.getElementById('graph-source-label');
+  const row    = document.getElementById('graph-source-chips-row');
+  const clearB = document.getElementById('graph-source-clear');
+  if (!wrap || !row || !labelE) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/graph/${graphId}/sources`);
+    if (!res.ok) { wrap.hidden = true; return; }
+    const data = await res.json();
+    const docs = data.documents || [];
+    if (!docs.length) { wrap.hidden = true; return; }
+    labelE.textContent = docs.length === 1
+      ? 'Knowledge Graph — 1 document'
+      : `Knowledge Graph — ${docs.length} documents`;
+    row.innerHTML = docs.map((d, i) => {
+      const c = CHIP_COLORS[i % CHIP_COLORS.length];
+      return `<button class="graph-source-chip" data-filename="${d.filename}"
+        style="background:${c.bg};border:1px solid ${c.border};color:${c.fg}">
+        📄 ${d.filename}
+      </button>`;
+    }).join('');
+    row.querySelectorAll('.graph-source-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const fn = btn.dataset.filename;
+        if (_graphSourceFilter === fn) { _clearGraphSourceFilter(); return; }
+        _graphSourceFilter = fn;
+        row.querySelectorAll('.graph-source-chip').forEach(b => b.classList.toggle('active', b.dataset.filename === fn));
+        clearB.hidden = false;
+        const ids = (currentGraph?.nodes || [])
+          .filter(n => (n.sources || []).includes(fn))
+          .map(n => n.id);
+        if (ids.length) highlightNodes(ids, 'info');
+        if (typeof gapBannerSource !== 'undefined' && gapBannerSource) gapBannerSource.textContent = `Document: ${fn}`;
+        if (typeof gapHighlightBanner !== 'undefined' && gapHighlightBanner) gapHighlightBanner.hidden = false;
+      });
+    });
+    if (clearB) {
+      clearB.onclick = _clearGraphSourceFilter;
+      clearB.hidden = true;
+    }
+    wrap.hidden = false;
+
+    // Cross-document insights — only when 2+ documents.
+    const insightsEl = document.getElementById('cross-doc-insights');
+    if (insightsEl) {
+      if (docs.length >= 2) {
+        insightsEl.hidden = false;
+        document.getElementById('cross-doc-status').textContent = 'Loading…';
+        document.getElementById('cross-doc-list').innerHTML = '';
+        fetchCrossDocInsights(graphId);
+      } else {
+        insightsEl.hidden = true;
+      }
+    }
+  } catch (e) {
+    console.warn('Source chips fetch failed:', e);
+    wrap.hidden = true;
+  }
+}
+
+function _clearGraphSourceFilter() {
+  _graphSourceFilter = null;
+  document.querySelectorAll('.graph-source-chip').forEach(b => b.classList.remove('active'));
+  const cb = document.getElementById('graph-source-clear');
+  if (cb) cb.hidden = true;
+  if (typeof resetGraphHighlight === 'function') resetGraphHighlight();
+  if (typeof gapHighlightBanner !== 'undefined' && gapHighlightBanner) gapHighlightBanner.hidden = true;
+}
+
+const CROSS_DOC_ICON = { gap: '⚠', missing: '✦', inconsistency: '◆', contradiction: '✕' };
+
+async function fetchCrossDocInsights(graphId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/graph/${graphId}/cross-doc-insights`, { method: 'POST' });
+    if (!res.ok) {
+      document.getElementById('cross-doc-status').textContent = 'Unavailable';
+      return;
+    }
+    const data = await res.json();
+    const list = document.getElementById('cross-doc-list');
+    const items = (data.insights || []).slice(0, 3);
+    if (!items.length) {
+      document.getElementById('cross-doc-status').textContent = 'No cross-document issues found';
+      list.innerHTML = '';
+      return;
+    }
+    document.getElementById('cross-doc-status').textContent = `${items.length} finding${items.length === 1 ? '' : 's'}`;
+    list.innerHTML = items.map(i => `
+      <li class="cross-doc-item cross-doc-cat-${i.category || 'gap'}">
+        <span class="cross-doc-icon">${CROSS_DOC_ICON[i.category] || '✦'}</span>
+        <span class="cross-doc-text">${i.text || ''}</span>
+      </li>`).join('');
+  } catch (e) {
+    console.warn('Cross-doc insights fetch failed:', e);
+    document.getElementById('cross-doc-status').textContent = 'Unavailable';
+  }
+}
+
 function matchLiveStep(stepName) {
   if (!liveStepsByName || !stepName) return null;
   const lower = stepName.toLowerCase().trim();
@@ -242,6 +353,23 @@ function fileIcon(name) {
   return { pdf: '📄', docx: '📝', doc: '📝', txt: '📃' }[ext] || '📎';
 }
 
+function _fmtBytes(b) {
+  if (b >= 1e6) return (b / 1e6).toFixed(1) + 'MB';
+  if (b >= 1e3) return Math.round(b / 1e3) + 'KB';
+  return b + 'B';
+}
+
+function _estimateChars(file) {
+  // Rough char estimate per file type. For .txt 1 byte ≈ 1 char; .docx is
+  // zip-compressed XML (~2.5x expansion to text); .pdf is similar.
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const mult = { txt: 1.0, docx: 2.5, doc: 2.5, pdf: 2.0 }[ext] || 1.5;
+  return Math.round(file.size * mult);
+}
+
+const UPLOAD_CHAR_LIMIT = 15000;
+const upCharCounter = document.getElementById('upload-char-counter');
+
 function renderFileList() {
   fileList.innerHTML = '';
   selectedFiles.forEach((f, i) => {
@@ -249,6 +377,7 @@ function renderFileList() {
     li.className = 'file-item';
     li.innerHTML = `
       <span class="file-name" title="${f.name}">${fileIcon(f.name)} ${f.name}</span>
+      <span class="file-size">${_fmtBytes(f.size)}</span>
       <button class="file-remove" data-i="${i}" title="Remove">✕</button>
     `;
     fileList.appendChild(li);
@@ -257,6 +386,23 @@ function renderFileList() {
     btn.addEventListener('click', () => { selectedFiles.splice(+btn.dataset.i, 1); renderFileList(); })
   );
   btnExtract.disabled = selectedFiles.length === 0;
+
+  // Combined-size character counter
+  if (!upCharCounter) return;
+  if (!selectedFiles.length) {
+    upCharCounter.hidden = true;
+    upCharCounter.textContent = '';
+    return;
+  }
+  const totalChars = selectedFiles.reduce((s, f) => s + _estimateChars(f), 0);
+  let cls = 'upload-char-ok';
+  let suffix = '';
+  if (totalChars > UPLOAD_CHAR_LIMIT)        { cls = 'upload-char-over';  suffix = ' — will be trimmed proportionally'; }
+  else if (totalChars > UPLOAD_CHAR_LIMIT * 0.8) { cls = 'upload-char-warn'; suffix = ' — approaching limit'; }
+  upCharCounter.className = `upload-char-counter ${cls}`;
+  upCharCounter.textContent =
+    `Combined size: ~${totalChars.toLocaleString()} characters (limit: ${UPLOAD_CHAR_LIMIT.toLocaleString()}${suffix})`;
+  upCharCounter.hidden = false;
 }
 
 /* ── Extraction ── */
@@ -295,6 +441,9 @@ async function extractGraph() {
     // Prefetch live operational data so Dashboard / Workflows render fast.
     fetchLiveSummary();
     fetchLiveSteps();
+
+    // Multi-document UI: render source chips + cross-doc insights (only when 2+ sources).
+    fetchAndRenderGraphSources(currentGraphId);
   } catch (e) {
     alert(`Extraction failed:\n${e.message}`);
     placeholder.style.display = '';
@@ -455,6 +604,19 @@ function showDetail(data, kind) {
   detailTitle.textContent  = data.label;
   detailDesc.textContent   = data.description || '—';
   detailSource.textContent = data.source_text  || '—';
+
+  // Sources row — only shown when the node carries source filenames.
+  const sRow = document.getElementById('detail-sources-row');
+  const sVal = document.getElementById('detail-sources-value');
+  if (sRow && sVal) {
+    const srcs = (kind === 'node' && Array.isArray(data.sources)) ? data.sources : [];
+    if (srcs.length) {
+      sVal.textContent = srcs.join(', ');
+      sRow.hidden = false;
+    } else {
+      sRow.hidden = true;
+    }
+  }
   detailPanel.classList.add('open');
 }
 
@@ -2545,6 +2707,10 @@ btnReset.addEventListener('click', () => {
   if (btnConfLiveData) btnConfLiveData.disabled = true;
   liveSummary = null;
   liveStepsByName = null;
+  // Multi-doc UI: hide source chips + cross-doc insights, clear filter.
+  _graphSourceFilter = null;
+  const _gsc = document.getElementById('graph-source-chips'); if (_gsc) _gsc.hidden = true;
+  const _cdi = document.getElementById('cross-doc-insights'); if (_cdi) _cdi.hidden = true;
   setNavActive('nav-graph');
 });
 

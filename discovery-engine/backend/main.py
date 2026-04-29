@@ -16,7 +16,7 @@ _env_file = find_dotenv(usecwd=True) or str(Path(__file__).parent.parent / ".env
 load_dotenv(_env_file, override=True)
 
 from document_parser import parse_document  # noqa: E402
-from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis  # noqa: E402
+from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis, generate_cross_doc_insights  # noqa: E402
 import db  # noqa: E402
 import seed_db  # noqa: E402
 
@@ -43,6 +43,8 @@ _conformance_store:  dict[str, dict] = {}  # evidence_id -> full result
 _conformance_latest: dict[str, str]  = {}  # graph_id    -> latest evidence_id
 _hash_store:         dict[str, str]  = {}  # graph_id    -> doc_hash
 _workflow_cache:     dict[str, list] = {}  # doc_hash    -> workflows (cross-session)
+_doc_sources_store:  dict[str, list] = {}  # graph_id    -> [{filename, word_count}]
+_cross_doc_store:    dict[str, dict] = {}  # graph_id    -> cross-doc insights result
 
 app = FastAPI(title="Metafore Discovery Engine", version="1.0.0")
 
@@ -93,14 +95,58 @@ async def upload_documents(files: List[UploadFile] = File(...)):
         except Exception as e:
             graph["_neo4j_error"] = str(e)
 
+    # Validate / fill the per-node `sources` field. Claude is instructed to set
+    # it but we defensively cap to the actual filenames the user uploaded.
+    valid_filenames = [name for name, _ in documents]
+    valid_set = set(valid_filenames)
+    for n in graph.get("nodes", []):
+        srcs = n.get("sources") or []
+        cleaned = [s for s in srcs if s in valid_set]
+        if not cleaned:
+            cleaned = valid_filenames[:1]   # fallback to first/only filename
+        n["sources"] = cleaned
+
     graph_id = str(uuid.uuid4())
     doc_hash = hashlib.sha256(b"".join(raw_contents)).hexdigest()
     _graph_store[graph_id] = graph
     _doc_store[graph_id]   = "\n\n".join(t for _, t in documents)[:15_000]
     _hash_store[graph_id]  = doc_hash
+    _doc_sources_store[graph_id] = [
+        {"filename": name, "word_count": len(text.split())}
+        for name, text in documents
+    ]
     graph["graph_id"] = graph_id
 
     return graph
+
+
+@app.get("/api/graph/{graph_id}/sources")
+async def graph_sources(graph_id: str):
+    """List the documents that contributed to this graph."""
+    sources = _doc_sources_store.get(graph_id)
+    if sources is None:
+        raise HTTPException(status_code=404, detail="Graph not found")
+    return {"graph_id": graph_id, "documents": sources}
+
+
+@app.post("/api/graph/{graph_id}/cross-doc-insights")
+async def cross_doc_insights_endpoint(graph_id: str):
+    """One Haiku call that surfaces cross-document gaps / inconsistencies.
+    Cached per graph_id. 400s when fewer than 2 source documents."""
+    if graph_id in _cross_doc_store:
+        return _cross_doc_store[graph_id]
+    graph = _graph_store.get(graph_id)
+    if not graph:
+        raise HTTPException(status_code=404, detail="Graph not found")
+    sources = _doc_sources_store.get(graph_id, [])
+    if len(sources) < 2:
+        raise HTTPException(status_code=400, detail="Cross-document insights require 2+ source documents")
+    try:
+        result = generate_cross_doc_insights(graph, [s["filename"] for s in sources])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insights generation failed: {e}")
+    _cross_doc_store[graph_id] = result
+    return result
 
 
 class GraphPayload(BaseModel):

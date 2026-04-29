@@ -136,12 +136,13 @@
                   <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
               </div>
-              <p class="upload-text">Drop files or <label for="file-input" class="file-label">browse</label></p>
-              <p class="upload-hint">PDF · DOCX · TXT</p>
+              <p class="upload-text">Drop one or more documents here or <label for="file-input" class="file-label">browse</label></p>
+              <p class="upload-hint">PDF · DOCX · TXT — combine multiple documents into one knowledge graph</p>
               <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt" hidden />
             </div>
 
             <ul class="file-list" id="file-list"></ul>
+            <div id="upload-char-counter" class="upload-char-counter" hidden></div>
 
             <button id="btn-extract" class="btn-primary" disabled>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px">
@@ -386,6 +387,20 @@
           <p class="spinner-label">Extracting knowledge graph…</p>
         </div>
 
+        <div id="cross-doc-insights" class="cross-doc-insights" hidden>
+          <div class="cross-doc-header">
+            <span class="cross-doc-title">Cross-Document Insights</span>
+            <span class="cross-doc-status" id="cross-doc-status">Loading…</span>
+          </div>
+          <ul class="cross-doc-list" id="cross-doc-list"></ul>
+        </div>
+
+        <div id="graph-source-chips" class="graph-source-chips" hidden>
+          <span class="graph-source-label" id="graph-source-label">Knowledge Graph</span>
+          <div class="graph-source-chips-row" id="graph-source-chips-row"></div>
+          <button class="graph-source-clear" id="graph-source-clear" hidden>Clear filter ×</button>
+        </div>
+
         <div id="gap-highlight-banner" class="gap-highlight-banner" hidden>
           Showing <span id="gap-banner-count">0</span> nodes from <span id="gap-banner-source">Gap Analysis</span> —
           <button id="gap-banner-clear" class="gap-banner-clear">Clear ×</button>
@@ -451,6 +466,10 @@
       </div>
       <h2 class="detail-title" id="detail-title"></h2>
       <p class="detail-desc" id="detail-desc"></p>
+      <div class="detail-sources-row" id="detail-sources-row" hidden>
+        <span class="detail-sources-label">Sources</span>
+        <span class="detail-sources-value" id="detail-sources-value"></span>
+      </div>
       <div class="detail-source-block">
         <div class="section-label">Source Text</div>
         <blockquote id="detail-source"></blockquote>
