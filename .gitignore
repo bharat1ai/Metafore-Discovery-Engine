@@ -20,6 +20,10 @@ nohup.out
 .server.log
 .server.err
 
+# Local SQLite demo DB (auto-seeded on server start)
+*.db
+discovery-engine/backend/data/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1075,6 +1075,199 @@ pre {
 }
 .wf-auto-score-recommendation:empty { display: none; }
 
+/* ── Workflows: Actual vs SOP block on AS-IS steps ── */
+.wf-step-actual {
+  margin-top: 6px;
+  padding: 5px 7px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-left: 2px solid var(--brand);
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.wf-actual-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--brand);
+  letter-spacing: 0.08em;
+  background: var(--brand-light);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.wf-actual-stat {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-sec);
+  white-space: nowrap;
+}
+.wf-actual-stat.wf-actual-ok     { color: #15803d; }
+.wf-actual-stat.wf-actual-warn   { color: #b45309; }
+.wf-actual-stat.wf-actual-breach { color: #b91c1c; font-weight: 700; }
+
+/* ── Dashboard: Live Operational Data section ── */
+.dash-liveops-section { /* uses .dash-section base */ }
+.dash-liveops-loading {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 8px 0;
+}
+.dash-liveops-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.dash-liveops-kpi {
+  background: linear-gradient(180deg, var(--bg) 0%, var(--brand-light) 100%);
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  padding: 8px 6px;
+  text-align: center;
+}
+.dash-liveops-kpi-val {
+  font-size: 18px;
+  font-weight: 800;
+  font-family: var(--mono);
+  color: var(--brand);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.dash-liveops-kpi-label {
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 3px;
+}
+.dash-liveops-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.dash-liveops-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  color: var(--text-sec);
+}
+.dash-liveops-status-val { font-weight: 700; font-family: var(--mono); color: var(--text); }
+.dash-liveops-status-label { text-transform: uppercase; letter-spacing: 0.04em; font-size: 9px; }
+.dash-liveops-status.dash-status-disbursed    { border-color: #86efac; }
+.dash-liveops-status.dash-status-disbursed .dash-liveops-status-val { color: #15803d; }
+.dash-liveops-status.dash-status-underwriting { border-color: #fcd34d; }
+.dash-liveops-status.dash-status-underwriting .dash-liveops-status-val { color: #b45309; }
+.dash-liveops-status.dash-status-pending      { border-color: var(--border); }
+.dash-liveops-status.dash-status-declined     { border-color: #fca5a5; }
+.dash-liveops-status.dash-status-declined .dash-liveops-status-val { color: #b91c1c; }
+
+.dash-liveops-breaches { margin-top: 4px; }
+.dash-liveops-sub {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 5px;
+}
+.dash-liveops-breach-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+}
+.dash-liveops-breach-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 9px;
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid #ef4444;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.dash-liveops-breach-name { color: var(--text); font-weight: 500; }
+.dash-liveops-breach-count {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+/* ── Conformance: Live data button ── */
+.conf-or-divider {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 10px 0 8px;
+  position: relative;
+}
+.conf-or-divider::before,
+.conf-or-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 35%;
+  height: 1px;
+  background: var(--border-light);
+}
+.conf-or-divider::before { left: 0; }
+.conf-or-divider::after  { right: 0; }
+
+.conf-live-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px dashed var(--brand-border);
+  border-radius: 7px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: background 0.15s, border-style 0.15s;
+  margin-bottom: 10px;
+}
+.conf-live-btn:hover:not(:disabled) {
+  background: var(--brand-light);
+  border-style: solid;
+}
+.conf-live-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.conf-sel-live-tag {
+  display: inline-block;
+  background: var(--brand);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 /* disclaimer */
 .workflow-disclaimer {
   font-size: 10px; color: var(--text-muted);

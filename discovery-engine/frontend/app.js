@@ -33,6 +33,67 @@ let currentGraph        = null;
 let currentGraphId      = null;
 let currentWorkflows    = null;   // populated after generateWorkflows; consumed by Dashboard
 let network             = null;
+
+/* Live operational data (SQLite-backed). Populated on graph upload, used by
+   Dashboard, Workflows (Actual vs SOP), Conformance (live evidence option). */
+let liveSummary = null;            // {total_applications, ...}
+let liveStepsByName = null;        // {step_name: {expected_role, ..., actual_roles, ...}}
+
+const LIVE_STEP_NAMES = [
+  'Application Submission',
+  'KYC Verification',
+  'Credit Check',
+  'Underwriting Review',
+  'Approval Decision',
+  'Disbursement',
+  'Post-Disbursement Audit',
+];
+
+async function fetchLiveSummary(force = false) {
+  if (liveSummary && !force) return liveSummary;
+  try {
+    const res = await fetch(`${API_BASE}/api/data/summary`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    if (!res.ok) return null;
+    liveSummary = await res.json();
+    return liveSummary;
+  } catch (e) {
+    console.warn('Live summary fetch failed:', e);
+    return null;
+  }
+}
+
+async function fetchLiveSteps(force = false) {
+  if (liveStepsByName && !force) return liveStepsByName;
+  try {
+    const results = await Promise.all(
+      LIVE_STEP_NAMES.map(async name => {
+        try {
+          const r = await fetch(`${API_BASE}/api/data/step/${encodeURIComponent(name)}`);
+          return r.ok ? await r.json() : null;
+        } catch { return null; }
+      })
+    );
+    liveStepsByName = {};
+    results.forEach(r => { if (r) liveStepsByName[r.step_name] = r; });
+    return liveStepsByName;
+  } catch (e) {
+    console.warn('Live steps fetch failed:', e);
+    return null;
+  }
+}
+
+function matchLiveStep(stepName) {
+  if (!liveStepsByName || !stepName) return null;
+  const lower = stepName.toLowerCase().trim();
+  for (const k of Object.keys(liveStepsByName)) {
+    if (k.toLowerCase() === lower) return liveStepsByName[k];
+  }
+  for (const k of Object.keys(liveStepsByName)) {
+    const kl = k.toLowerCase();
+    if (kl.includes(lower) || lower.includes(kl)) return liveStepsByName[k];
+  }
+  return null;
+}
 const _originalNodeColors = {};
 
 /* ── Pulse state ── */
@@ -227,8 +288,13 @@ async function extractGraph() {
     btnGapAnalyse.disabled       = false;
     btnGapAnalyseEmpty.disabled  = false;
     document.getElementById('btn-pulse').disabled = false;
+    if (btnConfLiveData) btnConfLiveData.disabled = false;
     fetchPulse();
     nlqInit();
+
+    // Prefetch live operational data so Dashboard / Workflows render fast.
+    fetchLiveSummary();
+    fetchLiveSteps();
   } catch (e) {
     alert(`Extraction failed:\n${e.message}`);
     placeholder.style.display = '';
@@ -688,6 +754,21 @@ function _nodeChip(label, nodeId, extraClass) {
 
 const _WF_CONNECTOR = '<div class="wf-flow-connector"><div class="wf-connector-line"></div><div class="wf-connector-arrow"></div></div>';
 
+function _liveActualBlock(stepName) {
+  const live = matchLiveStep(stepName);
+  if (!live || !live.execution_count) return '';
+  const breachCls   = (live.breach_rate_pct || 0) >= 15 ? 'wf-actual-breach' : (live.breach_rate_pct || 0) > 0 ? 'wf-actual-warn' : 'wf-actual-ok';
+  const slaCls      = live.sla_hours && live.avg_duration_hours && live.avg_duration_hours > live.sla_hours ? 'wf-actual-warn' : '';
+  const mismatchCls = (live.role_mismatch_count || 0) > 0 ? 'wf-actual-warn' : '';
+  return `
+    <div class="wf-step-actual" title="From live operational data">
+      <span class="wf-actual-label">ACTUAL</span>
+      <span class="wf-actual-stat ${slaCls}">${live.avg_duration_hours != null ? live.avg_duration_hours + 'h avg' : '—'}${live.sla_hours ? ' / ' + live.sla_hours + 'h SLA' : ''}</span>
+      <span class="wf-actual-stat ${breachCls}">${live.breach_rate_pct ?? 0}% breach (${live.breach_count || 0}/${live.execution_count})</span>
+      ${live.role_mismatch_count > 0 ? `<span class="wf-actual-stat ${mismatchCls}">${live.role_mismatch_count} role mismatch</span>` : ''}
+    </div>`;
+}
+
 function _buildAsIsSteps(steps) {
   if (!steps || !steps.length) return '';
   return steps.map(step => {
@@ -706,6 +787,7 @@ function _buildAsIsSteps(steps) {
           ${roleChip}${systemChip}
           ${timeStr ? `<span class="step-time">${timeStr}</span>` : ''}
         </div>
+        ${_liveActualBlock(step.name)}
       </div>`;
   }).join(_WF_CONNECTOR);
 }
@@ -762,7 +844,10 @@ function _benefitsStrip(b) {
     </div>`;
 }
 
-function renderWorkflows(workflows) {
+async function renderWorkflows(workflows) {
+  // Make sure live data is loaded before we draw step rows so the
+  // Actual-vs-SOP block can render synchronously inside _buildAsIsSteps.
+  await fetchLiveSteps();
   workflowList.innerHTML = '';
   workflowThinMsg.hidden = true;
 
@@ -1472,6 +1557,95 @@ async function confUploadEvidence(file) {
 }
 
 btnRunConformance.addEventListener('click', confRunAnalysis);
+
+// ── Conformance: live-data evidence option ─────────────────────────────────
+const btnConfLiveData = document.getElementById('btn-conf-live-data');
+
+function _formatLiveEvidenceText(summary, stepsByName) {
+  const lines = [];
+  lines.push('OPERATIONAL DATA REPORT — LIVE (auto-generated from production logs)');
+  lines.push('');
+  lines.push(`${summary.total_applications} loan applications processed in the reporting period.`);
+  const sb = summary.status_breakdown || {};
+  const sbStr = Object.entries(sb).map(([k, v]) => `${v} ${k}`).join(', ');
+  lines.push(`Status breakdown: ${sbStr || 'n/a'}.`);
+  lines.push(`Total loan value: $${(summary.total_amount_usd || 0).toLocaleString()}.`);
+  lines.push(`Average end-to-end cycle time on disbursed loans: ${summary.avg_cycle_time_hours ?? 'n/a'} hours.`);
+  lines.push(`Total step executions logged: ${summary.step_executions_total}.`);
+  lines.push('');
+
+  // Per-step actual reality vs SOP expectations
+  lines.push('STEP-BY-STEP RECORD:');
+  Object.values(stepsByName || {}).forEach(s => {
+    lines.push('');
+    lines.push(`${s.step_name.toUpperCase()} (SOP: ${s.expected_role} on ${s.expected_system}, ${s.sla_hours}h SLA):`);
+    lines.push(`  ${s.execution_count} executions: ${s.completed_count} completed, ${s.breach_count} breached, ${s.skipped_count} skipped, ${s.in_progress_count} in progress.`);
+    if (s.avg_duration_hours != null) {
+      lines.push(`  Average duration: ${s.avg_duration_hours} hours${s.sla_hours && s.avg_duration_hours > s.sla_hours ? ` — EXCEEDS SLA of ${s.sla_hours}h.` : '.'}`);
+    }
+    if (s.breach_count > 0) {
+      lines.push(`  SLA BREACH RATE: ${s.breach_rate_pct}% (${s.breach_count} of ${s.execution_count}).`);
+    }
+    if (s.role_mismatch_count > 0) {
+      const wrongRoles = (s.actual_roles || []).filter(r => r.role !== s.expected_role).map(r => `${r.role} (${r.count}x)`).join(', ');
+      lines.push(`  ROLE DEVIATION: ${s.role_mismatch_count} executions performed by someone other than ${s.expected_role}: ${wrongRoles}.`);
+    }
+    if (s.system_mismatch_count > 0) {
+      const wrongSys = (s.actual_systems || []).filter(x => x.system !== s.expected_system).map(x => `${x.system} (${x.count}x)`).join(', ');
+      lines.push(`  SYSTEM DEVIATION: ${s.system_mismatch_count} executions used a system other than ${s.expected_system}: ${wrongSys}.`);
+    }
+  });
+  lines.push('');
+  lines.push('Top breached steps overall: ' +
+    (summary.top_breached_steps || []).map(b => `${b.step_name} (${b.breach_count})`).join(', ') + '.');
+  return lines.join('\n');
+}
+
+if (btnConfLiveData) {
+  btnConfLiveData.addEventListener('click', async () => {
+    if (!currentGraphId) {
+      alert('Extract a graph before running conformance.');
+      return;
+    }
+    btnConfLiveData.disabled = true;
+    const origLabel = btnConfLiveData.querySelector('span').textContent;
+    btnConfLiveData.querySelector('span').textContent = 'Loading live data…';
+    confDropZone.classList.add('uploading');
+    btnRunConformance.disabled = true;
+    btnRunConformance.textContent = 'Loading live data…';
+    try {
+      const [summary, steps] = await Promise.all([fetchLiveSummary(true), fetchLiveSteps(true)]);
+      if (!summary || !steps) throw new Error('Live data unavailable');
+      const text = _formatLiveEvidenceText(summary, steps);
+      const blob = new Blob([text], { type: 'text/plain' });
+      const fd = new FormData();
+      fd.append('graph_id', currentGraphId);
+      fd.append('file', blob, 'live_operational_data.txt');
+      const res = await fetch(`${API_BASE}/conformance/upload`, { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      const data = await res.json();
+      conformanceEvidenceId = data.evidence_id;
+      confFileSelected.hidden = false;
+      confFileSelected.innerHTML =
+        `<span class="conf-sel-name">📊 ${data.filename} <span class="conf-sel-live-tag">LIVE</span></span>` +
+        `<span class="conf-sel-words">${data.word_count.toLocaleString()} words</span>`;
+      btnRunConformance.disabled = false;
+      btnRunConformance.textContent = 'Run Conformance Check →';
+      // Auto-run analysis since the user explicitly chose live data.
+      confRunAnalysis();
+    } catch (e) {
+      alert(`Live data conformance failed: ${e.message}`);
+      btnRunConformance.textContent = 'Run Conformance Check →';
+    } finally {
+      btnConfLiveData.querySelector('span').textContent = origLabel;
+      btnConfLiveData.disabled = !currentGraphId;
+      confDropZone.classList.remove('uploading');
+    }
+  });
+}
 
 async function confRunAnalysis() {
   if (!currentGraphId || !conformanceEvidenceId) return;
@@ -2200,6 +2374,9 @@ btnReset.addEventListener('click', () => {
   btnRunConformance.textContent = 'Run Conformance Check →';
   confGraphInfo.textContent = 'No graph loaded';
   confMainDocRow.hidden = true;
+  if (btnConfLiveData) btnConfLiveData.disabled = true;
+  liveSummary = null;
+  liveStepsByName = null;
   setNavActive('nav-graph');
 });
 
@@ -2542,7 +2719,19 @@ function renderDashboard() {
       </ul>
     </div>`;
 
-  panel.innerHTML = `${heroHtml}${healthHtml}${metricsHtml}${compositionHtml}${issuesHtml}${quickWinsHtml}${autoHtml}${checklistHtml}`;
+  // Live Operational Data section — placeholder, populated async after panel is in DOM.
+  const liveOpsHtml = `
+    <div class="dash-section dash-liveops-section" id="dash-liveops">
+      <div class="dash-section-label">Live Operational Data</div>
+      <div class="dash-liveops-body">
+        <div class="dash-liveops-loading">Loading from local demo DB…</div>
+      </div>
+    </div>`;
+
+  panel.innerHTML = `${heroHtml}${healthHtml}${metricsHtml}${compositionHtml}${liveOpsHtml}${issuesHtml}${quickWinsHtml}${autoHtml}${checklistHtml}`;
+
+  // Async-fetch summary and patch the section once it lands.
+  fetchLiveSummary().then(s => _renderDashLiveOps(s));
 
   // Wire metric card clicks
   panel.querySelectorAll('.dash-metric-card').forEach(card => {
@@ -2582,5 +2771,57 @@ function renderDashboard() {
       if (navId && view) { setNavActive(navId); switchView(view); }
     });
   });
+}
+
+function _renderDashLiveOps(summary) {
+  const body = document.querySelector('#dash-liveops .dash-liveops-body');
+  if (!body) return;
+  if (!summary) {
+    body.innerHTML = '<div class="dash-liveops-loading">Live operational data unavailable — check the server log.</div>';
+    return;
+  }
+  const fmtUSD = n => n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : n >= 1e3 ? `$${Math.round(n/1e3)}K` : `$${n}`;
+  const statusOrder = ['disbursed', 'underwriting', 'pending', 'declined'];
+  const statusEntries = Object.entries(summary.status_breakdown || {})
+    .sort((a, b) => statusOrder.indexOf(a[0]) - statusOrder.indexOf(b[0]));
+  const statusHtml = statusEntries.map(([k, v]) => `
+    <span class="dash-liveops-status dash-status-${k}">
+      <span class="dash-liveops-status-val">${v}</span>
+      <span class="dash-liveops-status-label">${k}</span>
+    </span>`).join('');
+
+  const breachesHtml = (summary.top_breached_steps || []).length ? `
+    <div class="dash-liveops-breaches">
+      <div class="dash-liveops-sub">Top breached steps</div>
+      <ul class="dash-liveops-breach-list">
+        ${summary.top_breached_steps.map(b => `
+          <li class="dash-liveops-breach-item">
+            <span class="dash-liveops-breach-name">${b.step_name}</span>
+            <span class="dash-liveops-breach-count">${b.breach_count}</span>
+          </li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  body.innerHTML = `
+    <div class="dash-liveops-kpis">
+      <div class="dash-liveops-kpi">
+        <div class="dash-liveops-kpi-val">${summary.total_applications}</div>
+        <div class="dash-liveops-kpi-label">Loan applications</div>
+      </div>
+      <div class="dash-liveops-kpi">
+        <div class="dash-liveops-kpi-val">${fmtUSD(summary.total_amount_usd || 0)}</div>
+        <div class="dash-liveops-kpi-label">Total value</div>
+      </div>
+      <div class="dash-liveops-kpi">
+        <div class="dash-liveops-kpi-val">${summary.avg_cycle_time_hours != null ? summary.avg_cycle_time_hours + 'h' : '—'}</div>
+        <div class="dash-liveops-kpi-label">Avg cycle</div>
+      </div>
+      <div class="dash-liveops-kpi">
+        <div class="dash-liveops-kpi-val">${summary.step_executions_total}</div>
+        <div class="dash-liveops-kpi-label">Step executions</div>
+      </div>
+    </div>
+    <div class="dash-liveops-statuses">${statusHtml}</div>
+    ${breachesHtml}`;
 }
 
