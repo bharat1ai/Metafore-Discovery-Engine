@@ -743,7 +743,7 @@ def run_conformance_analysis(graph: dict, evidence_text: str) -> dict:
     return _call_tool(CONFORMANCE_SYSTEM, prompt, CONFORMANCE_TOOL, model=SONNET, max_tokens=6000)
 
 
-def query_graph(graph: dict, question: str, doc_text: str = "") -> dict:
+def query_graph(graph: dict, question: str, doc_text: str = "", live_data_text: str = "") -> dict:
     node_lines = "\n".join(
         f"{n['id']} | {n['label']} | {n.get('type', '')}"
         for n in graph.get("nodes", [])
@@ -753,11 +753,16 @@ def query_graph(graph: dict, question: str, doc_text: str = "") -> dict:
         for e in graph.get("edges", [])
     )
     doc_section = f"\n\n=== SOURCE DOCUMENT ===\n{doc_text[:3000]}\n===" if doc_text else ""
+    live_section = (
+        f"\n\n=== OPERATIONAL DATA (live, from production logs — use to ground answers about reality, "
+        f"breach rates, who actually performed steps) ===\n{live_data_text[:3000]}\n==="
+        if live_data_text else ""
+    )
     prompt = (
         f"KNOWLEDGE GRAPH:\n\nNODES:\n{node_lines}\n\nEDGES:\n{edge_lines}"
-        f"{doc_section}\n\n"
+        f"{doc_section}{live_section}\n\n"
         f"QUESTION: {question}\n\n"
-        "Answer based on the graph and document. "
+        "Answer based on the graph, document, and operational data when relevant. "
         "List the IDs of the most relevant nodes in relevant_node_ids and edges in relevant_edge_ids."
     )
     return _call_tool(NLQ_SYSTEM, prompt, NLQ_TOOL, model=HAIKU, max_tokens=800)

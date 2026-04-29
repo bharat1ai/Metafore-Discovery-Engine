@@ -17,6 +17,15 @@ load_dotenv(_env_file, override=True)
 
 from document_parser import parse_document  # noqa: E402
 from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis  # noqa: E402
+import db  # noqa: E402
+import seed_db  # noqa: E402
+
+# Auto-seed local SQLite demo DB on startup. Idempotent — no-op when already seeded.
+try:
+    seed_db.seed_if_needed()
+except Exception as _seed_err:
+    import sys
+    print(f"[seed_db] WARNING: failed to seed demo DB: {_seed_err}", file=sys.stderr)
 
 ENABLE_NEO4J = os.getenv("ENABLE_NEO4J", "false").lower() == "true"
 
@@ -186,8 +195,15 @@ async def natural_language_query(payload: NlqRequest):
 
     doc_text = _doc_store.get(payload.graph_id, "")
 
+    # Build a compact operational-data context from the local SQLite demo DB so
+    # the NLQ can ground answers in actual breach rates / who-actually-did-what.
     try:
-        result = query_graph(graph, payload.question, doc_text)
+        live_data_text = _build_live_nlq_context()
+    except Exception:
+        live_data_text = ""
+
+    try:
+        result = query_graph(graph, payload.question, doc_text, live_data_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query failed: {e}")
 
@@ -532,7 +548,215 @@ async def conformance_latest(graph_id: str):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "neo4j_enabled": ENABLE_NEO4J}
+    return {
+        "status":          "ok",
+        "neo4j_enabled":   ENABLE_NEO4J,
+        "demo_db_seeded":  db.has_table("process_steps") and db.row_count("process_steps") > 0,
+    }
+
+
+# ── SQLite-backed demo data endpoints ───────────────────────────────────────
+# Read-only views over the banking demo data seeded via backend/seed_db.py.
+
+def _parse_iso(ts):
+    """Parse a SQLite ISO timestamp string to datetime; return None on failure.
+
+    SQLite's `datetime('now', ...)` returns 'YYYY-MM-DD HH:MM:SS' (no T, no tz).
+    `datetime.fromisoformat` handles this in Python 3.11+.
+    """
+    if not ts:
+        return None
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _build_live_nlq_context() -> str:
+    """Return a compact text summary of the SQLite demo DB for NLQ grounding.
+
+    Empty string when the demo DB is missing or empty — the NLQ then falls
+    back to graph + document only. Capped at a few hundred tokens.
+    """
+    if not (db.has_table("process_steps") and db.row_count("process_steps") > 0):
+        return ""
+    try:
+        apps  = db.query("SELECT status, loan_amount_usd FROM loan_applications")
+        steps = db.query("""
+            SELECT ps.step_name, ps.expected_role, ps.expected_system, ps.sla_hours,
+                   COUNT(se.id) AS execs,
+                   SUM(CASE WHEN se.status = 'breached' THEN 1 ELSE 0 END) AS breaches,
+                   SUM(CASE WHEN se.actual_role IS NOT NULL AND se.actual_role <> ps.expected_role THEN 1 ELSE 0 END) AS role_mismatches
+            FROM process_steps ps
+            LEFT JOIN step_executions se ON se.step_name = ps.step_name
+            GROUP BY ps.step_name
+        """)
+    except Exception:
+        return ""
+
+    if not apps:
+        return ""
+
+    status_counts: dict[str, int] = {}
+    total_amount = 0.0
+    for a in apps:
+        status_counts[a.get("status", "?")] = status_counts.get(a.get("status", "?"), 0) + 1
+        try:
+            total_amount += float(a.get("loan_amount_usd") or 0)
+        except (TypeError, ValueError):
+            pass
+
+    lines = [f"{len(apps)} loan applications. Status: " +
+             ", ".join(f"{v} {k}" for k, v in status_counts.items()) +
+             f". Total value: ${total_amount:,.0f}."]
+    for s in steps:
+        if not s.get("execs"):
+            continue
+        bits = [f"{s['execs']} runs"]
+        if s.get("breaches"):
+            bits.append(f"{s['breaches']} SLA breaches")
+        if s.get("role_mismatches"):
+            bits.append(f"{s['role_mismatches']} done by wrong role (SOP says {s['expected_role']})")
+        lines.append(f"- {s['step_name']} (SLA {s['sla_hours']}h): " + ", ".join(bits) + ".")
+    return "\n".join(lines)
+
+
+@app.post("/api/data/summary")
+async def data_summary():
+    """Aggregate banking-loan operations stats from the local SQLite demo DB.
+
+    Returns totals, status breakdown, average end-to-end cycle time on
+    disbursed loans, and the steps with the most SLA breaches.
+    """
+    try:
+        apps  = db.query("SELECT * FROM loan_applications")
+        execs = db.query("SELECT * FROM step_executions")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Demo DB query failed: {e}")
+
+    total_apps    = len(apps)
+    status_counts: dict[str, int] = {}
+    total_amount  = 0.0
+    for a in apps:
+        s = a.get("status", "unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+        try:
+            total_amount += float(a.get("loan_amount_usd") or 0)
+        except (TypeError, ValueError):
+            pass
+
+    # End-to-end cycle time: first-step started_at → Disbursement completed_at, on disbursed apps.
+    by_app: dict[str, list] = {}
+    for e in execs:
+        by_app.setdefault(e.get("application_id"), []).append(e)
+
+    cycle_hours = []
+    disbursed_ids = {a["id"] for a in apps if a.get("status") == "disbursed"}
+    for app_id, app_execs in by_app.items():
+        if app_id not in disbursed_ids:
+            continue
+        starts = [e for e in app_execs if e.get("step_name") == "Application Submission"]
+        ends   = [e for e in app_execs if e.get("step_name") == "Disbursement" and e.get("completed_at")]
+        if not starts or not ends:
+            continue
+        s_dt = _parse_iso(starts[0].get("started_at"))
+        e_dt = _parse_iso(ends[0].get("completed_at"))
+        if s_dt and e_dt:
+            cycle_hours.append((e_dt - s_dt).total_seconds() / 3600)
+
+    avg_cycle = round(sum(cycle_hours) / len(cycle_hours), 1) if cycle_hours else None
+
+    # Top SLA breaches by step
+    breach_counts: dict[str, int] = {}
+    for e in execs:
+        if e.get("status") == "breached":
+            sn = e.get("step_name", "")
+            breach_counts[sn] = breach_counts.get(sn, 0) + 1
+    top_breaches = sorted(breach_counts.items(), key=lambda kv: -kv[1])[:5]
+
+    return {
+        "total_applications":    total_apps,
+        "total_amount_usd":      round(total_amount, 2),
+        "status_breakdown":      status_counts,
+        "avg_cycle_time_hours":  avg_cycle,
+        "step_executions_total": len(execs),
+        "top_breached_steps":    [{"step_name": k, "breach_count": v} for k, v in top_breaches],
+    }
+
+
+@app.get("/api/data/step/{step_name}")
+async def step_reality(step_name: str):
+    """Compare the SOP-defined step (process_steps) to its actual execution log.
+
+    Returns expected role/system/SLA, actual execution stats, role and system
+    distributions, and an SLA-breach rate. Same response shape as before.
+    """
+    try:
+        cfg_rows  = db.query("SELECT * FROM process_steps   WHERE step_name = ?", (step_name,))
+        exec_rows = db.query("SELECT * FROM step_executions WHERE step_name = ?", (step_name,))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Demo DB query failed: {e}")
+
+    if not cfg_rows:
+        raise HTTPException(status_code=404, detail=f"No process_steps row for step_name='{step_name}'")
+    expected = cfg_rows[0]
+
+    durations = []
+    breached = 0
+    completed = 0
+    skipped = 0
+    in_progress = 0
+    role_counts:   dict[str, int] = {}
+    system_counts: dict[str, int] = {}
+    role_mismatch_count = 0
+    system_mismatch_count = 0
+
+    for e in exec_rows:
+        status = e.get("status")
+        if status == "completed":   completed += 1
+        if status == "breached":    breached += 1
+        if status == "skipped":     skipped += 1
+        if status == "in_progress": in_progress += 1
+
+        s_dt = _parse_iso(e.get("started_at"))
+        e_dt = _parse_iso(e.get("completed_at"))
+        if s_dt and e_dt:
+            durations.append((e_dt - s_dt).total_seconds() / 3600)
+
+        actual_role = e.get("actual_role")
+        if actual_role:
+            role_counts[actual_role] = role_counts.get(actual_role, 0) + 1
+            if actual_role != expected.get("expected_role"):
+                role_mismatch_count += 1
+
+        actual_system = e.get("actual_system")
+        if actual_system:
+            system_counts[actual_system] = system_counts.get(actual_system, 0) + 1
+            if actual_system != expected.get("expected_system"):
+                system_mismatch_count += 1
+
+    total = len(exec_rows)
+    avg_duration = round(sum(durations) / len(durations), 1) if durations else None
+    breach_rate  = round(breached / total * 100, 1) if total else 0.0
+
+    return {
+        "step_name":           step_name,
+        "expected_role":       expected.get("expected_role"),
+        "expected_system":     expected.get("expected_system"),
+        "sla_hours":           expected.get("sla_hours"),
+        "execution_count":     total,
+        "completed_count":     completed,
+        "breach_count":        breached,
+        "skipped_count":       skipped,
+        "in_progress_count":   in_progress,
+        "breach_rate_pct":     breach_rate,
+        "avg_duration_hours":  avg_duration,
+        "role_mismatch_count":   role_mismatch_count,
+        "system_mismatch_count": system_mismatch_count,
+        "actual_roles":   sorted([{"role": r, "count": c} for r, c in role_counts.items()],     key=lambda x: -x["count"]),
+        "actual_systems": sorted([{"system": s, "count": c} for s, c in system_counts.items()], key=lambda x: -x["count"]),
+    }
 
 
 # Serve frontend static files (JS, CSS) — must come after API routes
