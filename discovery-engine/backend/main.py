@@ -16,7 +16,7 @@ _env_file = find_dotenv(usecwd=True) or str(Path(__file__).parent.parent / ".env
 load_dotenv(_env_file, override=True)
 
 from document_parser import parse_document  # noqa: E402
-from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis, calculate_workflow_roi  # noqa: E402
+from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis  # noqa: E402
 
 ENABLE_NEO4J = os.getenv("ENABLE_NEO4J", "false").lower() == "true"
 
@@ -29,7 +29,6 @@ _blueprint_store:     dict[str, dict] = {}
 _object_model_store: dict[str, dict] = {}
 _pulse_store:        dict[str, dict] = {}
 _pulse_ai_store:     dict[str, dict] = {}
-_roi_store:          dict[str, dict] = {}  # graph_id -> {workflow_id: roi_result}
 _evidence_store:     dict[str, dict] = {}  # evidence_id -> {text, filename, word_count, graph_id}
 _conformance_store:  dict[str, dict] = {}  # evidence_id -> full result
 _conformance_latest: dict[str, str]  = {}  # graph_id    -> latest evidence_id
@@ -152,53 +151,6 @@ async def get_workflows(graph_id: str):
     if graph_id not in _workflow_store:
         raise HTTPException(status_code=404, detail="No workflows for this graph")
     return {"workflows": _workflow_store[graph_id]}
-
-
-class RoiRequest(BaseModel):
-    graph_id:    str
-    workflow_id: str | None = None  # if None, calculate for all workflows on this graph
-
-
-@app.post("/api/roi/calculate")
-async def calculate_roi_endpoint(payload: RoiRequest):
-    """Calculate ROI for one workflow, or all workflows on a graph. Cached per (graph_id, workflow_id)."""
-    graph = _graph_store.get(payload.graph_id)
-    if not graph:
-        raise HTTPException(status_code=404, detail="Graph not found")
-    workflows = _workflow_store.get(payload.graph_id)
-    if not workflows:
-        raise HTTPException(status_code=404, detail="No workflows for this graph — generate workflows first")
-
-    cache = _roi_store.setdefault(payload.graph_id, {})
-
-    if payload.workflow_id:
-        target = [w for w in workflows if w.get("id") == payload.workflow_id]
-        if not target:
-            raise HTTPException(status_code=404, detail="Workflow not found")
-    else:
-        target = workflows
-
-    for wf in target:
-        wid = wf.get("id")
-        if not wid or wid in cache:
-            continue
-        try:
-            cache[wid] = calculate_workflow_roi(wf, graph)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"ROI calculation failed for {wid}: {e}")
-
-    if payload.workflow_id:
-        return {"graph_id": payload.graph_id, "workflow_id": payload.workflow_id, "roi": cache[payload.workflow_id]}
-    return {"graph_id": payload.graph_id, "roi": cache}
-
-
-@app.get("/api/roi/{graph_id}")
-async def get_roi(graph_id: str):
-    """Return cached ROI results for a graph (keyed by workflow_id)."""
-    cache = _roi_store.get(graph_id)
-    if not cache:
-        raise HTTPException(status_code=404, detail="No ROI calculated for this graph")
-    return {"graph_id": graph_id, "roi": cache}
 
 
 @app.post("/api/generate-object-model")
