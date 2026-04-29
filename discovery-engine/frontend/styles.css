@@ -223,6 +223,8 @@ html, body {
 }
 .btn-header:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
 .btn-header:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-header svg { margin-right: 6px; flex-shrink: 0; }
+.btn-report { letter-spacing: 0.01em; }
 
 /* ── Body area ── */
 .body-area {

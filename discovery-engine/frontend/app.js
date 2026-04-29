@@ -306,6 +306,16 @@ function setNavActive(id) {
 switchView('graph');
 setNavActive('nav-graph');
 
+/* ── Generate Report (header button) — opens a new tab with a print-styled
+   executive HTML page; user prints to PDF via the browser. */
+const _btnGenReport = document.getElementById('btn-generate-report');
+if (_btnGenReport) {
+  _btnGenReport.addEventListener('click', () => {
+    if (!currentGraphId) return;
+    window.open(`${API_BASE}/api/report/${encodeURIComponent(currentGraphId)}`, '_blank', 'noopener');
+  });
+}
+
 /* ── Base nav handlers ── */
 document.getElementById('nav-dashboard').addEventListener('click', () => {
   setNavActive('nav-dashboard');
@@ -435,6 +445,8 @@ async function extractGraph() {
     btnGapAnalyseEmpty.disabled  = false;
     document.getElementById('btn-pulse').disabled = false;
     if (btnConfLiveData) btnConfLiveData.disabled = false;
+    const _btnReport = document.getElementById('btn-generate-report');
+    if (_btnReport) _btnReport.disabled = false;
     fetchPulse();
     nlqInit();
 
@@ -2705,6 +2717,8 @@ btnReset.addEventListener('click', () => {
   confGraphInfo.textContent = 'No graph loaded';
   confMainDocRow.hidden = true;
   if (btnConfLiveData) btnConfLiveData.disabled = true;
+  const _btnReportReset = document.getElementById('btn-generate-report');
+  if (_btnReportReset) _btnReportReset.disabled = true;
   liveSummary = null;
   liveStepsByName = null;
   // Multi-doc UI: hide source chips + cross-doc insights, clear filter.

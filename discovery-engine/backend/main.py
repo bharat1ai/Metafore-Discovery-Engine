@@ -7,7 +7,7 @@ from typing import List
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -19,6 +19,7 @@ from document_parser import parse_document  # noqa: E402
 from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis, generate_cross_doc_insights  # noqa: E402
 import db  # noqa: E402
 import seed_db  # noqa: E402
+import report as report_builder  # noqa: E402
 
 # Auto-seed local SQLite demo DB on startup. Idempotent — no-op when already seeded.
 try:
@@ -118,6 +119,100 @@ async def upload_documents(files: List[UploadFile] = File(...)):
     graph["graph_id"] = graph_id
 
     return graph
+
+
+@app.get("/api/report/{graph_id}", response_class=HTMLResponse)
+async def executive_report(graph_id: str) -> HTMLResponse:
+    """Self-contained, print-styled HTML executive report for the graph.
+
+    Pulls from existing in-memory stores and (when seeded) the SQLite demo DB
+    — no new LLM calls. Open in a new tab; users save to PDF via browser print.
+    Sections render conditionally based on what features have been run.
+    """
+    graph = _graph_store.get(graph_id)
+    if not graph:
+        html = report_builder._error_page(
+            "Report unavailable",
+            f"No graph for id {graph_id[:8]}…. Upload a document and try again.",
+        )
+        return HTMLResponse(content=html, status_code=404)
+
+    workflows  = _workflow_store.get(graph_id)
+    gap        = _gap_store.get(graph_id)
+    blueprint  = _blueprint_store.get(graph_id)
+    sources    = _doc_sources_store.get(graph_id)
+    cross_doc  = _cross_doc_store.get(graph_id)
+
+    # Latest conformance result for this graph (if any)
+    eid = _conformance_latest.get(graph_id)
+    conformance = _conformance_store.get(eid) if eid else None
+
+    # Live operational data (best-effort — empty if SQLite unseeded)
+    live_summary = None
+    live_steps   = None
+    try:
+        if db.has_table("process_steps") and db.row_count("process_steps") > 0:
+            apps  = db.query("SELECT * FROM loan_applications")
+            execs = db.query("SELECT * FROM step_executions")
+            if apps:
+                # Reuse the same aggregation as /api/data/summary, kept inline
+                # to avoid coupling to that endpoint's response shape.
+                status_counts: dict[str, int] = {}
+                total_amount = 0.0
+                for a in apps:
+                    status_counts[a.get("status", "?")] = status_counts.get(a.get("status", "?"), 0) + 1
+                    try:
+                        total_amount += float(a.get("loan_amount_usd") or 0)
+                    except (TypeError, ValueError):
+                        pass
+                breach_counts: dict[str, int] = {}
+                for e in execs:
+                    if e.get("status") == "breached":
+                        sn = e.get("step_name", "")
+                        breach_counts[sn] = breach_counts.get(sn, 0) + 1
+                top_breaches = sorted(breach_counts.items(), key=lambda kv: -kv[1])[:5]
+                live_summary = {
+                    "total_applications":    len(apps),
+                    "total_amount_usd":      round(total_amount, 2),
+                    "status_breakdown":      status_counts,
+                    "avg_cycle_time_hours":  None,
+                    "step_executions_total": len(execs),
+                    "top_breached_steps":    [{"step_name": k, "breach_count": v} for k, v in top_breaches],
+                }
+
+                # Per-step expected-vs-actual snapshot for the role-mismatch list
+                cfg_rows = db.query("SELECT * FROM process_steps")
+                live_steps = []
+                for cfg in cfg_rows:
+                    step_execs = [e for e in execs if e.get("step_name") == cfg.get("step_name")]
+                    if not step_execs:
+                        continue
+                    role_mismatch = sum(
+                        1 for e in step_execs
+                        if e.get("actual_role") and e.get("actual_role") != cfg.get("expected_role")
+                    )
+                    live_steps.append({
+                        "step_name":           cfg.get("step_name"),
+                        "expected_role":       cfg.get("expected_role"),
+                        "role_mismatch_count": role_mismatch,
+                    })
+    except Exception:
+        live_summary = None
+        live_steps   = None
+
+    html = report_builder.render_report(
+        graph_id,
+        graph=graph,
+        workflows=workflows,
+        gap=gap,
+        blueprint=blueprint,
+        conformance=conformance,
+        cross_doc=cross_doc,
+        sources=sources,
+        live_summary=live_summary,
+        live_steps=live_steps,
+    )
+    return HTMLResponse(content=html)
 
 
 @app.get("/api/graph/{graph_id}/sources")
