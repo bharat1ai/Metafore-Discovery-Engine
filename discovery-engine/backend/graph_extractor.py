@@ -44,8 +44,13 @@ GRAPH_TOOL = {
                         "type":        {"type": "string", "enum": ["Process", "Role", "System", "Policy", "DataEntity", "Event"]},
                         "description": {"type": "string", "description": "One-sentence description (≤ 90 chars)"},
                         "source_text": {"type": "string", "description": "Verbatim quote from the document (≤ 120 chars)"},
+                        "sources": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Filename(s) of source documents this entity appeared in. Single-doc: [filename]. Multi-doc: list ALL filenames where the entity is mentioned (an entity in 2+ docs has higher confidence).",
+                        },
                     },
-                    "required": ["id", "label", "type", "description", "source_text"],
+                    "required": ["id", "label", "type", "description", "source_text", "sources"],
                 },
             },
             "edges": {
@@ -377,7 +382,18 @@ BLUEPRINT_TOOL = {
 EXTRACTION_SYSTEM = (
     "You are an expert enterprise knowledge graph extractor. "
     "You extract comprehensive, accurate knowledge graphs from business documents. "
+    "Always populate the 'sources' field on every node with the filename(s) of the document(s) "
+    "that entity appeared in. "
     "Always call the extract_knowledge_graph tool with the full graph."
+)
+
+EXTRACTION_MULTI_DOC_RULES = (
+    "Multi-document rules:\n"
+    "- This is ONE unified graph that connects entities across all the documents above.\n"
+    "- Where the same entity appears in multiple documents, MERGE it into ONE node and "
+    "list ALL filenames in its sources field — this signals higher confidence.\n"
+    "- Where documents contradict on the same entity, note BOTH views in the node description.\n"
+    "- Tag every node with which document(s) it came from using the sources field."
 )
 
 EXTRACTION_PROMPT = """\
@@ -569,42 +585,144 @@ def _call_tool(system: str, prompt: str, tool: dict, model: str = "claude-sonnet
     raise RuntimeError("Claude did not return a tool_use block")
 
 
-# ── Graph helpers ─────────────────────────────────────────────────────────────
-
-def _merge_graphs(graphs: list[dict]) -> dict:
-    merged = {"nodes": [], "edges": []}
-    node_counter = 1
-    edge_counter = 1
-
-    for g in graphs:
-        id_remap: dict[str, str] = {}
-        for node in g.get("nodes", []):
-            new_id = f"n{node_counter}"
-            node_counter += 1
-            id_remap[node["id"]] = new_id
-            merged["nodes"].append({**node, "id": new_id})
-
-        for edge in g.get("edges", []):
-            src = id_remap.get(edge["source"], edge["source"])
-            tgt = id_remap.get(edge["target"], edge["target"])
-            merged["edges"].append(
-                {**edge, "id": f"e{edge_counter}", "source": src, "target": tgt}
-            )
-            edge_counter += 1
-
-    return merged
-
-
 # ── Public API ────────────────────────────────────────────────────────────────
 
+EXTRACTION_TOTAL_LIMIT = 15_000   # combined doc text cap before sending to Claude
+
+
+def _proportional_truncate(documents: list[tuple[str, str]], total_limit: int = EXTRACTION_TOTAL_LIMIT) -> list[tuple[str, str]]:
+    """Trim each document proportionally so total combined text length ≤ limit.
+
+    Reserves a small overhead per document for the "=== DOCUMENT: name ===" headers.
+    Each document is guaranteed at least 100 chars so very small docs are not zeroed.
+    """
+    header_overhead = 60 * len(documents)
+    text_budget = max(0, total_limit - header_overhead)
+    total_len = sum(len(t) for _, t in documents)
+    if total_len <= text_budget or total_len == 0:
+        return documents
+    out: list[tuple[str, str]] = []
+    for name, text in documents:
+        ratio = len(text) / total_len
+        new_len = max(100, int(ratio * text_budget))
+        out.append((name, text[:new_len]))
+    return out
+
+
 def extract_graph_from_text(text: str, filename: str = "document") -> dict:
-    prompt = EXTRACTION_PROMPT.format(filename=filename, text=text[:20_000])
-    return _call_tool(EXTRACTION_SYSTEM, prompt, GRAPH_TOOL, model=SONNET, max_tokens=8096)
+    """Single-document extraction (kept for backwards compatibility — delegates
+    to the unified multi-doc path with one entry)."""
+    return extract_graphs([(filename, text)])
 
 
 def extract_graphs(documents: list[tuple[str, str]]) -> dict:
-    graphs = [extract_graph_from_text(text, name) for name, text in documents]
-    return _merge_graphs(graphs)
+    """One Claude call against combined text → ONE unified knowledge graph.
+
+    For multi-doc uploads, entities that appear in more than one document are
+    merged into a single node whose 'sources' lists every filename it appeared
+    in (signalling higher confidence). For single-doc, this is identical to
+    the previous extract_graph_from_text behaviour.
+    """
+    if not documents:
+        raise ValueError("extract_graphs called with no documents")
+
+    truncated = _proportional_truncate(documents, EXTRACTION_TOTAL_LIMIT)
+    parts = [
+        f"=== DOCUMENT: {name} ===\n{text}\n=== END DOCUMENT ==="
+        for name, text in truncated
+    ]
+    combined = "\n\n".join(parts)
+
+    is_multi = len(documents) > 1
+    rules_block = f"\n\n{EXTRACTION_MULTI_DOC_RULES}" if is_multi else ""
+    filenames_csv = ", ".join(name for name, _ in documents)
+    node_target = "20-30" if is_multi else "15-20"
+
+    prompt = (
+        f"Analyse the following document{'s' if is_multi else ''} and call "
+        f"extract_knowledge_graph with a complete graph.\n\n"
+        f"{combined}{rules_block}\n\n"
+        "Node types to extract:\n"
+        "- Process   — workflows, procedures, process steps\n"
+        "- Role      — job titles, teams, departments, actors\n"
+        "- System    — software, platforms, tools, databases\n"
+        "- Policy    — rules, regulations, compliance requirements, SLAs\n"
+        "- DataEntity — documents, records, forms, data types\n"
+        "- Event     — triggers, milestones, notifications, deadlines\n\n"
+        "Relationship labels (use these or create precise alternatives):\n"
+        "triggers | executed_by | governed_by | uses_system | produces |\n"
+        "escalates_to | approves | reports_to | manages | depends_on |\n"
+        "notifies | owned_by | submits | validates | stores_in | assigned_to\n\n"
+        f"Extract {node_target} nodes and {node_target} edges covering the most important entities.\n"
+        "Every node ID referenced in an edge must exist in the nodes array.\n"
+        f"Every node MUST set the 'sources' field listing the document filename(s) it came from. "
+        f"Possible filenames: [{filenames_csv}].\n"
+    )
+    return _call_tool(EXTRACTION_SYSTEM, prompt, GRAPH_TOOL, model=SONNET, max_tokens=8096)
+
+
+# ── Cross-document insights (Haiku) ──────────────────────────────────────────
+
+CROSS_DOC_TOOL = {
+    "name": "cross_document_insights",
+    "description": "Identify the most valuable cross-document gaps, inconsistencies, or contradictions in a multi-source knowledge graph.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "insights": {
+                "type": "array",
+                "description": "Up to 3 most valuable cross-document findings.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string", "description": "ONE evidence-based sentence (≤ 30 words)."},
+                        "category": {
+                            "type": "string",
+                            "enum": ["gap", "inconsistency", "missing", "contradiction"],
+                            "description": "gap = policy/standard not enforced anywhere; missing = entity expected but absent; inconsistency = same entity defined differently; contradiction = explicit disagreement.",
+                        },
+                    },
+                    "required": ["text", "category"],
+                },
+            },
+        },
+        "required": ["insights"],
+    },
+}
+
+CROSS_DOC_SYSTEM = (
+    "You are an enterprise process compliance analyst. Given a knowledge graph "
+    "extracted from MULTIPLE documents (each node tagged with its source document(s) "
+    "in 'sources'), identify the 3 MOST valuable cross-document connections, gaps, or "
+    "inconsistencies. Look for:\n"
+    "- gap          : a Policy in one doc not referenced by any process in others\n"
+    "- missing      : a System/Role mentioned in one doc but not registered in another that should reference it\n"
+    "- inconsistency: same role/system with different scope or governance across docs\n"
+    "- contradiction: documents that explicitly disagree about the same entity\n"
+    "Each insight must be ONE short evidence-based sentence (≤30 words) that names the "
+    "specific entities and document(s). Always call cross_document_insights."
+)
+
+
+def generate_cross_doc_insights(graph: dict, source_filenames: list[str]) -> dict:
+    nodes = graph.get("nodes", [])
+    edges = graph.get("edges", [])
+    node_lines = "\n".join(
+        f"{n['id']} | {n.get('label','')} | {n.get('type','')} | sources: {','.join(n.get('sources') or [])}"
+        for n in nodes
+    )
+    edge_lines = "\n".join(
+        f"{e.get('source','')} --[{e.get('label','')}]--> {e.get('target','')}"
+        for e in edges
+    )
+    prompt = (
+        f"Documents: {', '.join(source_filenames)}\n\n"
+        f"Nodes (with source documents):\n{node_lines}\n\n"
+        f"Edges:\n{edge_lines}\n\n"
+        "Identify the 3 MOST valuable cross-document insights — gaps, inconsistencies, "
+        "or contradictions — that the customer should act on."
+    )
+    return _call_tool(CROSS_DOC_SYSTEM, prompt, CROSS_DOC_TOOL, model=HAIKU, max_tokens=1500)
 
 
 def _build_workflow_prompt(graph: dict, doc_text: str = "") -> str:
