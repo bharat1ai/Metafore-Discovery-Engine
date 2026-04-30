@@ -321,8 +321,7 @@ def _band(score):
 # ── Section builders ────────────────────────────────────────────────────────
 
 def _hero(graph_id: str, sources: list[dict] | None) -> str:
-    today = datetime.now().strftime("%-d %B %Y") if hasattr(datetime, "strftime") else str(datetime.now().date())
-    # Windows strftime doesn't support %-d; fall back manually:
+    # Windows strftime doesn't support %-d, so strip the leading zero manually
     today = datetime.now().strftime("%d %B %Y").lstrip("0")
     src_count = len(sources or [])
     src_text = ("1 source document" if src_count == 1
