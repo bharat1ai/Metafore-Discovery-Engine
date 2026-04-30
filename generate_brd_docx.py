@@ -301,41 +301,88 @@ def add_s6_functional(doc):
         ("FR-05", "Each upload shall produce an independent graph with a unique graph_id (UUID)"),
         ("FR-06", "Document text stored in memory shall be capped at 15,000 characters"),
     ])
-    fr_table("6.2", "Workflow Generation", [
-        ("FR-07", "System shall generate AS-IS and TO-BE workflows from the knowledge graph"),
-        ("FR-08", "Each workflow shall include ordered steps with responsible roles and linked systems"),
-        ("FR-09", "Hovering a workflow step shall highlight the corresponding node in the graph"),
-        ("FR-10", "Workflows shall be cached per graph_id and not regenerated on repeated navigation"),
+    fr_table("6.2", "Workflow Generation (consolidated bundle)", [
+        ("FR-07", "System shall generate 3–5 AS-IS / TO-BE workflows from the knowledge graph in a single Sonnet call"),
+        ("FR-08", "Each workflow shall include ordered steps with responsible roles, linked systems, and per-step SLA status"),
+        ("FR-09", "Each workflow shall include a ROI estimate (annual USD value, headline basis, 4–7 banking-industry assumptions, methodology note)"),
+        ("FR-10", "Each AS-IS step shall be scored 0–10 for automation potential, with level (High/Medium/Low), reason, and suggested approach"),
+        ("FR-11", "Each workflow shall include 2–4 process variants (standard happy path + exception/escalation paths) with frequency_pct summing to 100, divergence point/reason, avg TAT, and SLA status"),
+        ("FR-12", "Each variant shall list graph node_ids it touches; clicking a variant card shall highlight those nodes in the graph"),
+        ("FR-13", "Variants whose divergence_point matches a SQLite step shall be tagged data_source='live' with the actual breach rate; otherwise data_source='estimated'"),
+        ("FR-14", "Hovering or clicking a workflow step or step chip shall highlight the corresponding node in the graph"),
+        ("FR-15", "Workflows shall be cached per graph_id (in-session) and per document hash (cross-session); no Claude call on repeated navigation"),
+        ("FR-16", "When the SQLite demo DB is seeded, each AS-IS step that name-matches a known process step shall display an 'Actual vs SOP' block with avg duration, breach rate, and role mismatches"),
     ])
     fr_table("6.3", "Gap Analysis", [
-        ("FR-11", "System shall identify gaps: missing roles, policies, and systems in the process graph"),
-        ("FR-12", "Each gap item shall have a severity: Critical / High / Medium / Low"),
-        ("FR-13", "View in Graph shall highlight affected nodes on the knowledge graph"),
-        ("FR-14", "System shall generate a remediation blueprint using Claude Haiku"),
+        ("FR-17", "System shall identify gaps: missing roles, policies, and systems in the process graph"),
+        ("FR-18", "Each gap item shall have a severity: Critical / High / Medium / Low"),
+        ("FR-19", "View in Graph shall highlight affected nodes on the knowledge graph"),
+        ("FR-20", "System shall generate a remediation blueprint using Claude Haiku"),
+        ("FR-21", "Gap analysis result shall be exportable to a plain-text file for offline review"),
     ])
     fr_table("6.4", "Pulse Recommendations", [
-        ("FR-15", "System shall calculate rule-based health metrics from the knowledge graph"),
-        ("FR-16", "System shall generate AI recommendations (up to 5) using Claude Haiku"),
-        ("FR-17", "Pulse panel shall be accessible via a slide-in drawer from the sidebar"),
+        ("FR-22", "System shall calculate rule-based health metrics from the knowledge graph"),
+        ("FR-23", "System shall generate AI recommendations (up to 5) using Claude Haiku"),
+        ("FR-24", "Pulse panel shall be accessible via a slide-in drawer from the sidebar"),
     ])
     fr_table("6.5", "Conformance Checking", [
-        ("FR-18", "User shall upload a secondary evidence document (audit report, review log)"),
-        ("FR-19", "System shall score each eligible node as: Confirmed / Deviated / Not Found"),
-        ("FR-20", "System shall display a conformance percentage and evidence quotes"),
-        ("FR-21", "Overlay modes shall allow filtering to confirmed, deviated, or all nodes"),
-        ("FR-22", "Event and Objective nodes shall be excluded from conformance assessment"),
+        ("FR-25", "User shall upload a secondary evidence document (audit report, review log)"),
+        ("FR-26", "System shall score each eligible node as: Confirmed / Deviated / Not Found"),
+        ("FR-27", "System shall display a conformance percentage and evidence quotes"),
+        ("FR-28", "Overlay modes shall allow filtering to confirmed, deviated, or all nodes"),
+        ("FR-29", "Event and Objective nodes shall be excluded from conformance assessment"),
+        ("FR-30", "User shall be able to run conformance against live operational data instead of an uploaded file; the system shall synthesise an evidence document from the SQLite demo DB and run analysis through the same pipeline"),
     ])
     fr_table("6.6", "Object Model Generation", [
-        ("FR-23", "System shall generate a domain object model using BRD Authoring Standard §4"),
-        ("FR-24", "Output shall include: Pydantic v2 Python code, JSON Schema, and an ERD"),
-        ("FR-25", "Object model shall be cached per graph_id and not regenerated on repeated navigation"),
-        ("FR-26", "System shall show a loading spinner while the model is being generated"),
-        ("FR-27", "If no graph has been extracted, system shall show an empty-state prompt"),
+        ("FR-31", "System shall generate a domain object model using BRD Authoring Standard §4"),
+        ("FR-32", "Output shall include: Pydantic v2 Python code, JSON Schema, and an ERD"),
+        ("FR-33", "Object model shall be cached per graph_id and not regenerated on repeated navigation"),
+        ("FR-34", "System shall show a loading spinner while the model is being generated"),
+        ("FR-35", "If no graph has been extracted, system shall show an empty-state prompt"),
     ])
     fr_table("6.7", "Natural Language Querying", [
-        ("FR-28", "User shall be able to type a plain-English question about the graph"),
-        ("FR-29", "System shall return a direct answer plus highlighted relevant nodes"),
-        ("FR-30", "Query history shall be maintained per graph_id for the session"),
+        ("FR-36", "User shall be able to type a plain-English question about the graph"),
+        ("FR-37", "System shall return a direct answer plus highlighted relevant nodes"),
+        ("FR-38", "Query history shall be maintained per graph_id for the session"),
+        ("FR-39", "When the SQLite demo DB is seeded, the NLQ prompt shall include a compact OPERATIONAL DATA section so answers about reality (breach rates, role mismatches, cycle times) are grounded in actual data"),
+    ])
+    fr_table("6.8", "Dashboard", [
+        ("FR-40", "System shall provide a Dashboard view that aggregates state from existing in-memory stores with no new Claude calls"),
+        ("FR-41", "Dashboard shall display an Overall Health Score (0–100) as a weighted average of Coverage (40%), SLA Compliance (35%), and Conformance (25%); weights shall redistribute proportionally when conformance has not been run"),
+        ("FR-42", "Dashboard shall show three click-through metric cards (Coverage, SLA Compliance, Conformance) that navigate to their source tab"),
+        ("FR-43", "Dashboard shall show a graph composition bar chart by node type"),
+        ("FR-44", "Dashboard shall show up to 5 Top Issues (gap critical/warning + SLA-breach steps) with click-through highlight + navigation"),
+        ("FR-45", "Dashboard shall show up to 4 Quick Wins ranked by ROI dollar value"),
+        ("FR-46", "Dashboard shall show the top 3 highest-scoring AS-IS steps as Automation Highlights"),
+        ("FR-47", "Dashboard shall show a Completeness Checklist for major features with click-through CTAs"),
+        ("FR-48", "When the SQLite demo DB is seeded, Dashboard shall include a Live Operational Data section with KPIs (loan applications, total value, avg cycle, step executions), a status breakdown, and top breached steps"),
+        ("FR-49", "Dashboard shall present a hero CTA empty state when no graph is loaded"),
+        ("FR-50", "Returning to the Dashboard tab shall re-render with the latest data (auto-refresh)"),
+    ])
+    fr_table("6.9", "Multi-Document Upload and Cross-Document Insights", [
+        ("FR-51", "System shall accept multiple documents in a single upload request"),
+        ("FR-52", "System shall produce ONE unified knowledge graph from a single Sonnet call against combined document text (no per-doc-then-merge)"),
+        ("FR-53", "Combined input shall be capped at 15,000 characters; documents shall be truncated proportionally when the cap is exceeded"),
+        ("FR-54", "Every node shall carry a 'sources' field listing the filename(s) it appeared in (multi-source = higher confidence)"),
+        ("FR-55", "Upload UI shall display a combined-character counter (green / amber / red) that warns before the limit is exceeded"),
+        ("FR-56", "Above the graph, the system shall display a colored chip per source document; clicking a chip shall filter the graph to nodes from that document"),
+        ("FR-57", "Node detail panel shall display a Sources field listing the document filename(s) when present"),
+        ("FR-58", "When two or more documents are uploaded, the system shall produce up to 3 Cross-Document Insights via a single Haiku call (categories: gap / inconsistency / missing / contradiction); cached per graph_id"),
+        ("FR-59", "Single-document upload shall behave exactly as before — the chip row collapses to one chip and the Cross-Document Insights panel is hidden"),
+    ])
+    fr_table("6.10", "Live Operational Data (SQLite)", [
+        ("FR-60", "System shall ship with a local SQLite demo DB seeded on server startup with realistic banking-loan operations data (process_steps, loan_applications, step_executions)"),
+        ("FR-61", "System shall expose POST /api/data/summary returning aggregate stats (totals, status breakdown, average cycle time, top breached steps)"),
+        ("FR-62", "System shall expose GET /api/data/step/{step_name} returning expected-vs-actual stats for a single step (execution count, breach rate, avg duration, role/system mismatches)"),
+        ("FR-63", "Seeding shall be idempotent — re-running on a populated DB shall be a no-op"),
+        ("FR-64", "No external service or credentials shall be required for the demo data store to function"),
+    ])
+    fr_table("6.11", "Executive Report", [
+        ("FR-65", "System shall provide a header button 'Generate Report' that opens a self-contained, print-styled HTML page summarising every feature run for the current graph"),
+        ("FR-66", "Report shall be composed entirely from existing in-memory stores and the local SQLite DB; no new LLM calls shall be made to compose it"),
+        ("FR-67", "Report sections shall render conditionally — features that have not been run shall be omitted"),
+        ("FR-68", "Report shall include: hero, source documents, executive summary, top issues, cross-document insights (when applicable), workflow opportunities with total ROI roll-up, gap analysis, conformance results, live operational data, footer"),
+        ("FR-69", "Report HTML shall include a print stylesheet (page-break rules, color preservation, hidden action bar) so the user can save to PDF via the browser's native Print dialog"),
     ])
 
 
@@ -414,6 +461,13 @@ def add_s9_architecture(doc):
     section_heading(doc, "9", "System Architecture")
 
     sub_heading(doc, "9.1  Tech Stack")
+    body_text(doc,
+        "Backend: Python 3.11+, FastAPI, Uvicorn, anthropic SDK, python-docx (DOCX parsing — extracts paragraphs and table cells), "
+        "PyMuPDF (PDF parsing), python-dotenv, sqlite3 (built-in, used for the local demo DB; no external service required). "
+        "Frontend: Vanilla JavaScript + HTML + CSS, vis-network (self-hosted), no build step. "
+        "The Discovery Engine ships as a single-file FastAPI app plus static frontend assets — no database, message queue, or auth provider required to run."
+    )
+    body_text(doc, "Architecture details:")
     add_table(doc,
         ["Layer", "Technology", "Notes"],
         [
@@ -431,36 +485,43 @@ def add_s9_architecture(doc):
     add_table(doc,
         ["Endpoint", "Method", "Feature"],
         [
-            ("/api/upload",                     "POST", "Document upload and graph extraction"),
-            ("/api/workflows/generate",          "POST", "Workflow generation"),
-            ("/api/workflows/{id}",              "GET",  "Retrieve cached workflows"),
-            ("/api/generate-object-model",       "POST", "Object model generation"),
-            ("/api/query/natural-language",      "POST", "Natural language query"),
-            ("/api/query/history/{id}",          "GET",  "NLQ history"),
-            ("/api/gap-analysis/calculate",      "POST", "Gap analysis"),
-            ("/api/gap-analysis/blueprint",      "POST", "Remediation blueprint"),
-            ("/api/pulse/calculate",             "POST", "Pulse health metrics"),
-            ("/api/pulse/ai-recommendations",    "POST", "AI pulse recommendations"),
-            ("/conformance/upload",              "POST", "Evidence document upload"),
-            ("/conformance/analyse",             "POST", "Conformance analysis"),
-            ("/conformance/{id}/latest",         "GET",  "Latest conformance result"),
+            ("/api/upload",                                "POST", "Multi-document upload + unified graph extraction"),
+            ("/api/graph/{graph_id}/sources",              "GET",  "List source documents for a graph"),
+            ("/api/graph/{graph_id}/cross-doc-insights",   "POST", "Cross-document gaps and inconsistencies (Haiku, cached)"),
+            ("/api/workflows/generate",                    "POST", "Workflow bundle (workflow + ROI + automation + variants)"),
+            ("/api/workflows/{graph_id}",                  "GET",  "Retrieve cached workflows"),
+            ("/api/generate-object-model",                 "POST", "Object model generation"),
+            ("/api/query/natural-language",                "POST", "Natural language query (with SQLite operational context)"),
+            ("/api/query/history/{graph_id}",              "GET",  "NLQ history"),
+            ("/api/gap-analysis/calculate",                "POST", "Gap analysis"),
+            ("/api/gap-analysis/blueprint",                "POST", "Remediation blueprint"),
+            ("/api/pulse/calculate",                       "POST", "Pulse health metrics"),
+            ("/api/pulse/ai-recommendations",              "POST", "AI pulse recommendations"),
+            ("/api/data/summary",                          "POST", "SQLite operational data — aggregate stats"),
+            ("/api/data/step/{step_name}",                 "GET",  "SQLite operational data — per-step expected-vs-actual"),
+            ("/api/report/{graph_id}",                     "GET",  "Executive HTML report (browser print to PDF)"),
+            ("/api/health",                                "GET",  "Health probe (neo4j_enabled, demo_db_seeded)"),
+            ("/conformance/upload",                        "POST", "Evidence document upload (file or synthetic from live data)"),
+            ("/conformance/analyse",                       "POST", "Conformance analysis"),
+            ("/conformance/{graph_id}/latest",             "GET",  "Latest conformance result"),
         ],
-        col_widths=[2.8, 0.7, 3.0]
+        col_widths=[3.4, 0.7, 2.4]
     )
 
     sub_heading(doc, "9.3  AI Model Routing")
     add_table(doc,
         ["Feature", "Model", "Max Tokens", "Reason"],
         [
-            ("Graph extraction",         "Claude Sonnet 4.6", "8,096",  "Highest accuracy required"),
-            ("Workflow generation",       "Claude Sonnet 4.6", "16,000", "Complex nested schema"),
-            ("Object model",             "Claude Sonnet 4.6", "4,096",  "Code generation quality"),
-            ("Conformance analysis",     "Claude Sonnet 4.6", "6,000",  "Precise evidence matching"),
-            ("Natural language query",   "Claude Haiku 4.5",  "800",    "Simple Q&A"),
-            ("Blueprint",                "Claude Haiku 4.5",  "800",    "Short summary"),
-            ("Pulse AI recommendations", "Claude Haiku 4.5",  "2,048",  "Structured list"),
+            ("Graph extraction (single or multi-doc)", "Claude Sonnet 4.6", "8,096",  "Highest accuracy on entity/relationship extraction"),
+            ("Workflow bundle (workflow + ROI + automation + variants)", "Claude Sonnet 4.6", "32,000", "One consolidated call replaces former 7 calls; system prompt + tool schema cached (ephemeral)"),
+            ("Object model",                                "Claude Sonnet 4.6", "4,096",  "Code generation quality"),
+            ("Conformance analysis",                        "Claude Sonnet 4.6", "6,000",  "Precise evidence matching"),
+            ("Natural language query",                      "Claude Haiku 4.5",  "800",    "Simple Q&A; operational data injected into prompt"),
+            ("Blueprint",                                   "Claude Haiku 4.5",  "800",    "Short summary"),
+            ("Pulse AI recommendations",                    "Claude Haiku 4.5",  "2,048",  "Structured list"),
+            ("Cross-document insights",                     "Claude Haiku 4.5",  "1,500",  "Up to 3 cross-doc gaps, cached per graph_id"),
         ],
-        col_widths=[2.2, 1.8, 1.0, 1.5]
+        col_widths=[2.6, 1.8, 0.8, 1.3]
     )
 
 
@@ -468,24 +529,40 @@ def add_s10_data_model(doc):
     section_heading(doc, "10", "Data Model")
 
     sub_heading(doc, "10.1  In-Memory Stores")
-    body_text(doc, "All stores are keyed by graph_id (UUID) and reset on server restart. There is no persistent storage.")
+    body_text(doc, "Most stores are keyed by graph_id (UUID) and reset on server restart. _workflow_cache is keyed by document hash to enable cross-session caching. There is no persistent storage for graph state — only the SQLite demo DB persists between sessions.")
     add_table(doc,
         ["Store", "Key", "Value"],
         [
-            ("_graph_store",         "graph_id",    "Nodes, edges, graph_id"),
-            ("_doc_store",           "graph_id",    "Combined document text (max 15,000 chars)"),
-            ("_workflow_store",      "graph_id",    "Workflows list"),
-            ("_object_model_store",  "graph_id",    "Object model result"),
-            ("_query_history",       "graph_id",    "NLQ history entries"),
-            ("_gap_store",           "graph_id",    "Gap analysis result"),
-            ("_blueprint_store",     "graph_id",    "Blueprint result"),
-            ("_pulse_store",         "graph_id",    "Pulse items"),
-            ("_pulse_ai_store",      "graph_id",    "AI recommendations"),
-            ("_evidence_store",      "evidence_id", "Evidence document"),
-            ("_conformance_store",   "evidence_id", "Conformance result"),
-            ("_conformance_latest",  "graph_id",    "Latest evidence_id"),
+            ("_graph_store",          "graph_id",    "Nodes, edges, graph_id (each node carries a 'sources' field)"),
+            ("_doc_store",            "graph_id",    "Combined document text (max 15,000 chars)"),
+            ("_doc_sources_store",    "graph_id",    "List of {filename, word_count} for source documents"),
+            ("_hash_store",           "graph_id",    "SHA-256 hash of uploaded raw bytes (workflow cross-session cache key)"),
+            ("_workflow_store",       "graph_id",    "Workflow bundle (workflows + ROI + automation + variants)"),
+            ("_workflow_cache",       "doc_hash",    "Cross-session workflow cache (same content → instant reuse)"),
+            ("_cross_doc_store",      "graph_id",    "Cross-document insights result"),
+            ("_object_model_store",   "graph_id",    "Object model result"),
+            ("_query_history",        "graph_id",    "NLQ history entries"),
+            ("_gap_store",            "graph_id",    "Gap analysis result"),
+            ("_blueprint_store",      "graph_id",    "Blueprint result"),
+            ("_pulse_store",          "graph_id",    "Pulse items"),
+            ("_pulse_ai_store",       "graph_id",    "AI recommendations"),
+            ("_evidence_store",       "evidence_id", "Evidence document"),
+            ("_conformance_store",    "evidence_id", "Conformance result"),
+            ("_conformance_latest",   "graph_id",    "Latest evidence_id"),
         ],
         col_widths=[2.2, 1.3, 3.0]
+    )
+
+    sub_heading(doc, "10.1a  SQLite Demo DB (persistent local file)")
+    body_text(doc, "Auto-seeded on server startup at backend/data/demo.db. Holds banking-loan operational data the dashboard, workflows, conformance, and NLQ overlay onto the SOP-extracted graph.")
+    add_table(doc,
+        ["Table", "Purpose"],
+        [
+            ("process_steps",   "SOP-defined steps with expected_role, expected_system, sla_hours"),
+            ("loan_applications","13 sample applications with status (disbursed / underwriting / pending / declined) and amount"),
+            ("step_executions", "~71 actual step executions with started_at, completed_at, actual_role, actual_system, status (completed / breached / skipped / in_progress)"),
+        ],
+        col_widths=[2.0, 4.5]
     )
 
     sub_heading(doc, "10.2  Node Types")
