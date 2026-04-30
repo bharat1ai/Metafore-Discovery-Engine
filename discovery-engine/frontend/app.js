@@ -2850,18 +2850,57 @@ function _dashFmtUSD(n) {
   return `$${n}`;
 }
 
+function _dashTotalRoi() {
+  if (!currentWorkflows || !currentWorkflows.length) return null;
+  const total = currentWorkflows
+    .map(w => Number(w.roi?.headline_value_usd) || 0)
+    .reduce((a, b) => a + b, 0);
+  return total > 0 ? total : null;
+}
+
 function _dashEmptyHtml() {
-  return `
-    <div class="dash-empty">
-      <div class="dash-empty-icon">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
+  const previewTiles = [
+    { icon: 'graph',     title: 'Knowledge graph',  body: 'Interactive map of processes, roles, systems, policies and data.' },
+    { icon: 'workflow',  title: 'Workflows + ROI',  body: 'AS-IS / TO-BE journeys with $ value freed and automation scoring.' },
+    { icon: 'gap',       title: 'Gap analysis',     body: 'Coverage scoring with critical / warning issues and a remediation blueprint.' },
+    { icon: 'shield',    title: 'Conformance',      body: 'Audit evidence vs SOP — confirmed, deviated and not-found findings.' },
+  ];
+  const tileSvg = (icon) => {
+    const ico = {
+      graph:    '<circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="6" y1="8" x2="6" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/><line x1="8" y1="18" x2="16" y2="18"/>',
+      workflow: '<polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/>',
+      gap:      '<path d="M12 2 L12 22 M5 7 L19 17 M19 7 L5 17"/>',
+      shield:   '<path d="M12 2 L20 6 V12 C20 16 16 20 12 22 C8 20 4 16 4 12 V6 Z"/><polyline points="9 12 11 14 15 10"/>',
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">${ico[icon] || ''}</svg>`;
+  };
+  const tilesHtml = previewTiles.map(t => `
+    <div class="dash-onb-tile">
+      <span class="dash-onb-tile-icon">${tileSvg(t.icon)}</span>
+      <div class="dash-onb-tile-text">
+        <div class="dash-onb-tile-title">${t.title}</div>
+        <div class="dash-onb-tile-body">${t.body}</div>
       </div>
-      <h2 class="dash-empty-title">Welcome to the Discovery Engine</h2>
-      <p class="dash-empty-sub">Upload an SOP, policy, or process document to extract a knowledge graph and unlock workflows, ROI, gap analysis, and conformance.</p>
-      <button class="dash-cta-btn" id="dash-cta-upload">Upload document →</button>
+    </div>`).join('');
+  return `
+    <div class="dash-onb">
+      <div class="dash-onb-hero">
+        <div class="dash-onb-eyebrow">METAFORE WORKS · DISCOVERY ENGINE</div>
+        <h2 class="dash-onb-title">Turn one document into a process command centre.</h2>
+        <p class="dash-onb-sub">Upload an SOP, policy, or process document. We'll extract a knowledge graph and surface workflows, ROI, gaps and conformance — all on this dashboard.</p>
+        <button class="dash-onb-cta" id="dash-cta-upload">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;vertical-align:-2px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload your first document
+        </button>
+        <div class="dash-onb-formats">Supports .docx · .pdf · .txt · upload up to 4 documents at once</div>
+      </div>
+      <div class="dash-onb-preview">
+        <div class="dash-onb-preview-label">What you'll see once a document is uploaded</div>
+        <div class="dash-onb-tiles">${tilesHtml}</div>
+      </div>
     </div>`;
 }
 
@@ -2879,110 +2918,148 @@ function renderDashboard() {
     return;
   }
 
-  // Section 1: Health score
   const coverage = gapAnalysisResult?.coverage_score ?? null;
   const sla      = _dashAvgSlaCompliance();
   const conform  = conformanceResult?.overall_conformance_rate ?? null;
   const health   = _dashHealthScore(coverage, sla, conform);
   const band     = health !== null ? _dashHealthBand(health) : null;
+  const totalRoi = _dashTotalRoi();
 
-  // Section 3: Graph composition
   const typeCounts = {};
   (currentGraph.nodes || []).forEach(n => {
     typeCounts[n.type] = (typeCounts[n.type] || 0) + 1;
   });
 
-  // Sections 4-6
-  const issues       = _dashCollectTopIssues();
-  const quickWins    = _dashCollectQuickWins();
-  const autoTop      = _dashCollectAutomationHighlights();
+  const issues    = _dashCollectTopIssues();
+  const quickWins = _dashCollectQuickWins();
+  const autoTop   = _dashCollectAutomationHighlights();
 
-  // Section 7: Completeness
-  const checklist = [
-    { label: 'Knowledge graph extracted',    done: !!currentGraph,                     nav: 'nav-graph',       view: 'graph'       },
-    { label: 'Workflows generated',          done: !!(currentWorkflows && currentWorkflows.length), nav: 'nav-workflows', view: 'workflows' },
-    { label: 'Gap analysis run',             done: !!gapAnalysisResult,                nav: 'nav-gap',         view: 'gap'         },
-    { label: 'Conformance check run',        done: !!conformanceResult,                nav: 'nav-conformance', view: 'conformance' },
-  ];
-
-  // Hero header
   const nodeCount = (currentGraph.nodes || []).length;
   const edgeCount = (currentGraph.edges || []).length;
-  const heroHtml = `
-    <div class="dash-hero">
-      <div class="dash-hero-eyebrow">PROCESS HEALTH OVERVIEW</div>
-      <div class="dash-hero-title">Discovery Engine</div>
-      <div class="dash-hero-meta">
-        <span class="dash-hero-stat"><b>${nodeCount}</b> nodes</span>
-        <span class="dash-hero-stat-divider"></span>
-        <span class="dash-hero-stat"><b>${edgeCount}</b> edges</span>
-        <span class="dash-hero-stat-divider"></span>
-        <span class="dash-hero-stat">${(currentWorkflows || []).length} workflows</span>
-      </div>
-    </div>`;
+  const wfCount   = (currentWorkflows || []).length;
 
-  // Health score (SVG ring)
-  const ringR = 52;
-  const ringC = 2 * Math.PI * ringR; // 326.7
+  const checklist = [
+    { label: 'Graph extracted',  done: !!currentGraph,                                     nav: 'nav-graph',       view: 'graph' },
+    { label: 'Workflows',        done: !!(currentWorkflows && currentWorkflows.length),    nav: 'nav-workflows',   view: 'workflows' },
+    { label: 'Gap analysis',     done: !!gapAnalysisResult,                                nav: 'nav-gap',         view: 'gap' },
+    { label: 'Conformance',      done: !!conformanceResult,                                nav: 'nav-conformance', view: 'conformance' },
+  ];
+
+  // ── Hero command bar — health ring + 4 KPI tiles ──────────────────────────
+  const ringR = 60;
+  const ringC = 2 * Math.PI * ringR;
   const ringFill = health !== null ? (health / 100) * ringC : 0;
 
-  const healthHtml = health !== null ? `
-    <div class="dash-section dash-health-section">
-      <div class="dash-section-label">Overall Health Score</div>
-      <div class="dash-health-row">
-        <div class="dash-health-ring">
-          <svg viewBox="0 0 120 120" class="dash-ring-svg">
-            <circle cx="60" cy="60" r="${ringR}" class="dash-ring-track"/>
-            <circle cx="60" cy="60" r="${ringR}" class="dash-ring-fill ${band.cls}"
-                    style="stroke-dasharray:${ringFill.toFixed(1)} ${ringC.toFixed(1)};"/>
-          </svg>
-          <div class="dash-ring-center">
-            <span class="dash-ring-value">${health}</span>
-            <span class="dash-ring-of">/ 100</span>
-          </div>
-        </div>
-        <div class="dash-health-meta">
-          <div class="dash-health-band ${band.cls}">${band.label.toUpperCase()}</div>
-          <div class="dash-health-formula">
-            ${coverage !== null ? `<span class="dash-formula-pill">Coverage <b>${coverage}</b></span>` : '<span class="dash-formula-pill dash-formula-missing">Coverage —</span>'}
-            ${sla !== null ? `<span class="dash-formula-pill">SLA <b>${sla}%</b></span>` : '<span class="dash-formula-pill dash-formula-missing">SLA —</span>'}
-            ${conform !== null ? `<span class="dash-formula-pill">Conformance <b>${conform}%</b></span>` : '<span class="dash-formula-pill dash-formula-missing">Conformance —</span>'}
-          </div>
-          <div class="dash-health-weights">Weighted: 40% coverage · 35% SLA · 25% conformance</div>
-        </div>
+  const ringHtml = health !== null ? `
+    <div class="dash-ring-wrap">
+      <svg viewBox="0 0 140 140" class="dash-ring-svg">
+        <circle cx="70" cy="70" r="${ringR}" class="dash-ring-track"/>
+        <circle cx="70" cy="70" r="${ringR}" class="dash-ring-fill ${band.cls}"
+                style="stroke-dasharray:${ringFill.toFixed(1)} ${ringC.toFixed(1)};"/>
+      </svg>
+      <div class="dash-ring-center">
+        <span class="dash-ring-value">${health}</span>
+        <span class="dash-ring-of">/ 100</span>
       </div>
+    </div>
+    <div class="dash-ring-band-wrap">
+      <span class="dash-health-band ${band.cls}">${band.label.toUpperCase()}</span>
+      <span class="dash-ring-formula">${[
+        coverage !== null ? `Cov ${coverage}` : null,
+        sla      !== null ? `SLA ${sla}%`    : null,
+        conform  !== null ? `Cnf ${conform}%` : null,
+      ].filter(Boolean).join(' · ') || 'Run a check to score'}</span>
     </div>` : `
-    <div class="dash-section dash-health-section">
-      <div class="dash-section-label">Overall Health Score</div>
-      <div class="dash-health-empty">Run gap analysis, generate workflows, or run a conformance check to compute the score.</div>
+    <div class="dash-ring-wrap dash-ring-empty-wrap">
+      <svg viewBox="0 0 140 140" class="dash-ring-svg">
+        <circle cx="70" cy="70" r="${ringR}" class="dash-ring-track"/>
+      </svg>
+      <div class="dash-ring-center">
+        <span class="dash-ring-value dash-ring-value-empty">—</span>
+        <span class="dash-ring-of">/ 100</span>
+      </div>
+    </div>
+    <div class="dash-ring-band-wrap">
+      <span class="dash-health-band dash-health-empty-band">NOT YET SCORED</span>
+      <span class="dash-ring-formula">Run gap, workflows or conformance to score</span>
     </div>`;
 
-  const metricCard = (label, value, statusLabel, statusCls, navId, viewKey, nullState) => `
-    <button class="dash-metric-card ${nullState ? 'dash-metric-null' : ''}" data-nav="${navId}" data-view="${viewKey}">
-      <div class="dash-metric-label">${label}</div>
-      <div class="dash-metric-value ${statusCls}">${nullState ? '—' : value}</div>
-      <div class="dash-metric-status ${statusCls}">${nullState ? 'Not run' : statusLabel}</div>
-      <div class="dash-metric-arrow">→</div>
+  const _slaStatus  = (v) => v >= 85 ? ['Meeting target', 'dash-status-good'] : v >= 70 ? ['Watch', 'dash-status-warn'] : ['Below target', 'dash-status-poor'];
+  const _covStatus  = (v) => v >= 70 ? ['Strong',         'dash-status-good'] : v >= 50 ? ['Partial', 'dash-status-warn'] : ['Sparse',     'dash-status-poor'];
+  const _confStatus = (v) => v >= 70 ? ['Conforming',     'dash-status-good'] : v >= 50 ? ['Mixed',  'dash-status-warn'] : ['Non-conforming', 'dash-status-poor'];
+
+  const kpiTile = (label, value, statusLabel, statusCls, navId, viewKey, nullState, valueCls = '') => `
+    <button class="dash-kpi-tile ${nullState ? 'dash-kpi-null' : ''}" data-nav="${navId}" data-view="${viewKey}">
+      <div class="dash-kpi-label">${label}</div>
+      <div class="dash-kpi-value ${valueCls}">${nullState ? '—' : value}</div>
+      <div class="dash-kpi-status ${statusCls}">
+        <span class="dash-kpi-status-dot ${statusCls}"></span>
+        <span>${nullState ? 'Not run' : statusLabel}</span>
+      </div>
     </button>`;
 
-  const _slaStatus = (v) => v >= 85 ? ['Meeting target', 'dash-status-good'] : v >= 70 ? ['Watch', 'dash-status-warn'] : ['Below target', 'dash-status-poor'];
-  const _covStatus = (v) => v >= 70 ? ['Strong', 'dash-status-good'] : v >= 50 ? ['Partial', 'dash-status-warn'] : ['Sparse', 'dash-status-poor'];
-  const _confStatus = (v) => v >= 70 ? ['Conforming', 'dash-status-good'] : v >= 50 ? ['Mixed', 'dash-status-warn'] : ['Non-conforming', 'dash-status-poor'];
-
-  const metricsHtml = `
-    <div class="dash-section">
-      <div class="dash-section-label">Metric snapshot</div>
-      <div class="dash-metrics-grid">
-        ${metricCard('Coverage Score',  coverage !== null ? `${coverage}` : null, ...(coverage !== null ? _covStatus(coverage)  : ['', '']), 'nav-gap',         'gap',         coverage === null)}
-        ${metricCard('SLA Compliance',  sla      !== null ? `${sla}%`     : null, ...(sla      !== null ? _slaStatus(sla)      : ['', '']), 'nav-workflows',   'workflows',   sla      === null)}
-        ${metricCard('Conformance',     conform  !== null ? `${conform}%` : null, ...(conform  !== null ? _confStatus(conform) : ['', '']), 'nav-conformance', 'conformance', conform  === null)}
+  const heroHtml = `
+    <section class="dash-hero-bar dash-anim" style="--anim-delay:0ms">
+      <div class="dash-hero-side">
+        ${ringHtml}
       </div>
-    </div>`;
+      <div class="dash-hero-main">
+        <div class="dash-hero-titlerow">
+          <div>
+            <div class="dash-hero-eyebrow">Process command centre</div>
+            <h1 class="dash-hero-h">Discovery overview</h1>
+          </div>
+          <div class="dash-hero-counts">
+            <span class="dash-hero-count"><b>${nodeCount}</b><i>nodes</i></span>
+            <span class="dash-hero-count"><b>${edgeCount}</b><i>edges</i></span>
+            <span class="dash-hero-count"><b>${wfCount}</b><i>workflows</i></span>
+          </div>
+        </div>
+        <div class="dash-kpi-grid">
+          ${kpiTile('Coverage',     coverage !== null ? `${coverage}`   : null, ...(coverage !== null ? _covStatus(coverage)  : ['', '']), 'nav-gap',         'gap',         coverage === null)}
+          ${kpiTile('SLA',          sla      !== null ? `${sla}%`       : null, ...(sla      !== null ? _slaStatus(sla)      : ['', '']), 'nav-workflows',   'workflows',   sla      === null)}
+          ${kpiTile('Conformance',  conform  !== null ? `${conform}%`   : null, ...(conform  !== null ? _confStatus(conform) : ['', '']), 'nav-conformance', 'conformance', conform  === null)}
+          ${kpiTile('Total ROI',    totalRoi !== null ? _dashFmtUSD(totalRoi) : null, totalRoi !== null ? 'Annual value freed' : '', 'dash-status-good', 'nav-workflows', 'workflows', totalRoi === null, 'dash-kpi-roi')}
+        </div>
+      </div>
+    </section>`;
+
+  // ── Two-column body ───────────────────────────────────────────────────────
+  const sevIcon = (s) => s === 'critical'
+    ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16.5" x2="12" y2="16.5"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18.5a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12" y2="17"/></svg>';
+
+  const issuesCard = `
+    <article class="dash-card dash-anim" style="--anim-delay:80ms">
+      <header class="dash-card-head">
+        <span class="dash-card-label">Top issues</span>
+        ${issues.length ? `<span class="dash-card-count">${issues.length}</span>` : ''}
+      </header>
+      ${issues.length ? `
+        <ul class="dash-issues-list">
+          ${issues.map((i, idx) => `
+            <li class="dash-issue-item dash-sev-${i.severity}" data-issue-idx="${idx}">
+              <span class="dash-issue-icon dash-sev-${i.severity}">${sevIcon(i.severity)}</span>
+              <div class="dash-issue-text">
+                <div class="dash-issue-title">${i.title}</div>
+                <div class="dash-issue-detail">${i.detail}</div>
+              </div>
+              <span class="dash-issue-arrow">→</span>
+            </li>`).join('')}
+        </ul>` : `
+        <div class="dash-card-empty">
+          <span class="dash-card-empty-tick">✓</span>
+          No critical issues detected
+        </div>`}
+    </article>`;
 
   const maxTypeCount = Math.max(1, ...Object.values(typeCounts));
-  const compositionHtml = `
-    <div class="dash-section">
-      <div class="dash-section-label">Graph composition</div>
+  const compositionCard = `
+    <article class="dash-card dash-anim" style="--anim-delay:160ms">
+      <header class="dash-card-head">
+        <span class="dash-card-label">Graph composition</span>
+        <span class="dash-card-count">${nodeCount} nodes</span>
+      </header>
       <div class="dash-composition-bars">
         ${Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => {
           const t = NODE_TYPES[type] || { bg: '#E2E8F0', border: '#94A3B8' };
@@ -3000,32 +3077,14 @@ function renderDashboard() {
             </div>`;
         }).join('')}
       </div>
-    </div>`;
+    </article>`;
 
-  const sevDot = (s) => s === 'critical' ? '●' : s === 'warning' ? '●' : '●';
-  const issuesHtml = issues.length ? `
-    <div class="dash-section">
-      <div class="dash-section-label">Top issues</div>
-      <ul class="dash-issues-list">
-        ${issues.map((i, idx) => `
-          <li class="dash-issue-item dash-sev-${i.severity}" data-issue-idx="${idx}">
-            <span class="dash-issue-dot dash-sev-${i.severity}">${sevDot(i.severity)}</span>
-            <div class="dash-issue-text">
-              <div class="dash-issue-title">${i.title}</div>
-              <div class="dash-issue-detail">${i.detail}</div>
-            </div>
-            <span class="dash-issue-arrow">→</span>
-          </li>`).join('')}
-      </ul>
-    </div>` : `
-    <div class="dash-section">
-      <div class="dash-section-label">Top issues</div>
-      <div class="dash-empty-row">No critical issues detected.</div>
-    </div>`;
-
-  const quickWinsHtml = quickWins.length ? `
-    <div class="dash-section">
-      <div class="dash-section-label">Quick wins (highest ROI)</div>
+  const quickWinsCard = quickWins.length ? `
+    <article class="dash-card dash-anim" style="--anim-delay:120ms">
+      <header class="dash-card-head">
+        <span class="dash-card-label">Quick wins · ROI</span>
+        <span class="dash-card-count">${quickWins.length}</span>
+      </header>
       <ul class="dash-quickwins-list">
         ${quickWins.map(w => `
           <li class="dash-quickwin-item" data-wf-id="${w.id}">
@@ -3034,17 +3093,29 @@ function renderDashboard() {
             <span class="dash-qw-arrow">→</span>
           </li>`).join('')}
       </ul>
-    </div>` : '';
+    </article>` : `
+    <article class="dash-card dash-card-locked dash-anim" style="--anim-delay:120ms">
+      <header class="dash-card-head">
+        <span class="dash-card-label">Quick wins · ROI</span>
+      </header>
+      <div class="dash-card-empty">
+        <span>Generate workflows to surface dollar-value quick wins.</span>
+        <button class="dash-card-cta-btn" data-nav="nav-workflows" data-view="workflows">Generate →</button>
+      </div>
+    </article>`;
 
-  const autoHtml = autoTop.length ? `
-    <div class="dash-section">
-      <div class="dash-section-label">Automation highlights</div>
+  const autoCard = autoTop.length ? `
+    <article class="dash-card dash-anim" style="--anim-delay:200ms">
+      <header class="dash-card-head">
+        <span class="dash-card-label">Automation highlights</span>
+        <span class="dash-card-count">${autoTop.length}</span>
+      </header>
       <ul class="dash-auto-list">
         ${autoTop.map(a => {
           const tier = a.score >= 8 ? 'high' : a.score >= 5 ? 'med' : 'low';
           return `
             <li class="dash-auto-item">
-              <span class="dash-auto-score dash-auto-tier-${tier}">${a.score}/10</span>
+              <span class="dash-auto-score dash-auto-tier-${tier}">${a.score}<i>/10</i></span>
               <div class="dash-auto-text">
                 <div class="dash-auto-step">${a.step}</div>
                 <div class="dash-auto-meta">${a.workflow} · ${a.approach || '—'}</div>
@@ -3052,45 +3123,62 @@ function renderDashboard() {
             </li>`;
         }).join('')}
       </ul>
-    </div>` : '';
+    </article>` : '';
 
+  const bodyHtml = `
+    <section class="dash-body-grid">
+      <div class="dash-body-col">${issuesCard}${compositionCard}</div>
+      <div class="dash-body-col">${quickWinsCard}${autoCard}</div>
+    </section>`;
+
+  // ── Live Operational Data — promoted band ─────────────────────────────────
+  const liveOpsHtml = `
+    <section class="dash-card dash-liveops-card dash-anim" id="dash-liveops" style="--anim-delay:240ms">
+      <header class="dash-card-head">
+        <span class="dash-card-label">Live operational data</span>
+        <span class="dash-card-meta">Demo SQLite · last 30 days</span>
+      </header>
+      <div class="dash-liveops-body">
+        <div class="dash-liveops-skeleton">
+          <div class="dash-skel-kpis">
+            <div class="dash-skel-kpi"></div><div class="dash-skel-kpi"></div>
+            <div class="dash-skel-kpi"></div><div class="dash-skel-kpi"></div>
+          </div>
+          <div class="dash-skel-row"></div>
+          <div class="dash-skel-row dash-skel-row-narrow"></div>
+        </div>
+      </div>
+    </section>`;
+
+  // ── Completeness footer (compact pill row) ────────────────────────────────
   const checklistHtml = `
-    <div class="dash-section dash-checklist-section">
-      <div class="dash-section-label">Completeness</div>
+    <section class="dash-checklist-bar dash-anim" style="--anim-delay:280ms">
+      <span class="dash-checklist-label">Setup progress</span>
       <ul class="dash-checklist">
         ${checklist.map(c => `
-          <li class="dash-check-item ${c.done ? 'dash-check-done' : 'dash-check-todo'}" data-nav="${c.nav}" data-view="${c.view}">
+          <li class="dash-check-pill ${c.done ? 'dash-check-done' : 'dash-check-todo'}" data-nav="${c.nav}" data-view="${c.view}">
             <span class="dash-check-mark">${c.done ? '✓' : '○'}</span>
             <span class="dash-check-label">${c.label}</span>
-            ${c.done ? '' : '<span class="dash-check-cta">Run it →</span>'}
+            ${c.done ? '' : '<span class="dash-check-cta">Run →</span>'}
           </li>`).join('')}
       </ul>
-    </div>`;
+    </section>`;
 
-  // Live Operational Data section — placeholder, populated async after panel is in DOM.
-  const liveOpsHtml = `
-    <div class="dash-section dash-liveops-section" id="dash-liveops">
-      <div class="dash-section-label">Live Operational Data</div>
-      <div class="dash-liveops-body">
-        <div class="dash-liveops-loading">Loading from local demo DB…</div>
-      </div>
-    </div>`;
+  panel.innerHTML = `${heroHtml}${bodyHtml}${liveOpsHtml}${checklistHtml}`;
 
-  panel.innerHTML = `${heroHtml}${healthHtml}${metricsHtml}${compositionHtml}${liveOpsHtml}${issuesHtml}${quickWinsHtml}${autoHtml}${checklistHtml}`;
-
-  // Async-fetch summary and patch the section once it lands.
   fetchLiveSummary().then(s => _renderDashLiveOps(s));
 
-  // Wire metric card clicks
-  panel.querySelectorAll('.dash-metric-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const navId = card.dataset.nav;
-      const view  = card.dataset.view;
+  // ── Wire interactions ─────────────────────────────────────────────────────
+  panel.querySelectorAll('[data-nav][data-view]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      // Don't double-handle issue items (they have their own handler with extra logic)
+      if (el.classList.contains('dash-issue-item')) return;
+      const navId = el.dataset.nav;
+      const view  = el.dataset.view;
       if (navId && view) { setNavActive(navId); switchView(view); }
     });
   });
 
-  // Wire issue clicks
   panel.querySelectorAll('.dash-issue-item').forEach(li => {
     li.addEventListener('click', () => {
       const idx = parseInt(li.dataset.issueIdx, 10);
@@ -3103,20 +3191,10 @@ function renderDashboard() {
     });
   });
 
-  // Wire quick-win clicks → workflows tab
   panel.querySelectorAll('.dash-quickwin-item').forEach(li => {
     li.addEventListener('click', () => {
       setNavActive('nav-workflows');
       switchView('workflows');
-    });
-  });
-
-  // Wire checklist click-throughs
-  panel.querySelectorAll('.dash-check-item.dash-check-todo').forEach(li => {
-    li.addEventListener('click', () => {
-      const navId = li.dataset.nav;
-      const view  = li.dataset.view;
-      if (navId && view) { setNavActive(navId); switchView(view); }
     });
   });
 }
@@ -3125,18 +3203,25 @@ function _renderDashLiveOps(summary) {
   const body = document.querySelector('#dash-liveops .dash-liveops-body');
   if (!body) return;
   if (!summary) {
-    body.innerHTML = '<div class="dash-liveops-loading">Live operational data unavailable — check the server log.</div>';
+    body.innerHTML = '<div class="dash-liveops-unavail">Live operational data unavailable — check the server log.</div>';
     return;
   }
   const fmtUSD = n => n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : n >= 1e3 ? `$${Math.round(n/1e3)}K` : `$${n}`;
   const statusOrder = ['disbursed', 'underwriting', 'pending', 'declined'];
   const statusEntries = Object.entries(summary.status_breakdown || {})
     .sort((a, b) => statusOrder.indexOf(a[0]) - statusOrder.indexOf(b[0]));
+  const total = statusEntries.reduce((a, [, v]) => a + v, 0) || 1;
   const statusHtml = statusEntries.map(([k, v]) => `
     <span class="dash-liveops-status dash-status-${k}">
       <span class="dash-liveops-status-val">${v}</span>
       <span class="dash-liveops-status-label">${k}</span>
     </span>`).join('');
+
+  const stackedBarHtml = `
+    <div class="dash-liveops-stack" role="img" aria-label="Application status mix">
+      ${statusEntries.map(([k, v]) => `
+        <div class="dash-liveops-stack-seg dash-status-${k}" style="flex:${v}" title="${k}: ${v}"></div>`).join('')}
+    </div>`;
 
   const breachesHtml = (summary.top_breached_steps || []).length ? `
     <div class="dash-liveops-breaches">
@@ -3151,25 +3236,28 @@ function _renderDashLiveOps(summary) {
     </div>` : '';
 
   body.innerHTML = `
-    <div class="dash-liveops-kpis">
-      <div class="dash-liveops-kpi">
-        <div class="dash-liveops-kpi-val">${summary.total_applications}</div>
-        <div class="dash-liveops-kpi-label">Loan applications</div>
+    <div class="dash-liveops-grid">
+      <div class="dash-liveops-kpis">
+        <div class="dash-liveops-kpi">
+          <div class="dash-liveops-kpi-val">${summary.total_applications}</div>
+          <div class="dash-liveops-kpi-label">Loan applications</div>
+        </div>
+        <div class="dash-liveops-kpi">
+          <div class="dash-liveops-kpi-val">${fmtUSD(summary.total_amount_usd || 0)}</div>
+          <div class="dash-liveops-kpi-label">Total value</div>
+        </div>
+        <div class="dash-liveops-kpi">
+          <div class="dash-liveops-kpi-val">${summary.avg_cycle_time_hours != null ? summary.avg_cycle_time_hours + 'h' : '—'}</div>
+          <div class="dash-liveops-kpi-label">Avg cycle</div>
+        </div>
+        <div class="dash-liveops-kpi">
+          <div class="dash-liveops-kpi-val">${summary.step_executions_total}</div>
+          <div class="dash-liveops-kpi-label">Step executions</div>
+        </div>
       </div>
-      <div class="dash-liveops-kpi">
-        <div class="dash-liveops-kpi-val">${fmtUSD(summary.total_amount_usd || 0)}</div>
-        <div class="dash-liveops-kpi-label">Total value</div>
-      </div>
-      <div class="dash-liveops-kpi">
-        <div class="dash-liveops-kpi-val">${summary.avg_cycle_time_hours != null ? summary.avg_cycle_time_hours + 'h' : '—'}</div>
-        <div class="dash-liveops-kpi-label">Avg cycle</div>
-      </div>
-      <div class="dash-liveops-kpi">
-        <div class="dash-liveops-kpi-val">${summary.step_executions_total}</div>
-        <div class="dash-liveops-kpi-label">Step executions</div>
-      </div>
+      ${breachesHtml}
     </div>
-    <div class="dash-liveops-statuses">${statusHtml}</div>
-    ${breachesHtml}`;
+    ${stackedBarHtml}
+    <div class="dash-liveops-statuses">${statusHtml}</div>`;
 }
 
