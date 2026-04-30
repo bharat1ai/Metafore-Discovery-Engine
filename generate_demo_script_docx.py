@@ -329,33 +329,65 @@ def build():
 
     add_step_card(doc,
         step_num=1,
-        title="Upload the Banking SOP",
-        duration="≈ 2 min",
+        title="Multi-Document Upload",
+        duration="≈ 3 min",
         actions=[
             "Open http://localhost:8083",
-            "Click Choose Files → select commercial_banking_loan_sop.docx",
-            "Click Extract Graph",
-            "While loading (~40s) — narrate (see right →)",
-            "When graph renders — narrate (see right →)",
-            "Click any node → show source text quote in detail panel",
+            "Click Choose Files → select FOUR documents together: "
+            "commercial_banking_loan_sop.docx, compliance_policy.docx, "
+            "role_descriptions.docx, it_systems_register.docx",
+            "Watch the file list build up; observe the green 'Combined size: ~13,000 chars' counter",
+            "Click Extract Knowledge Graph",
+            "While loading (~50s) — narrate (see right →)",
+            "When the graph renders, look top-left of the graph area for: "
+            "'Knowledge Graph — 4 documents' + 4 colored 📄 chips, plus a Cross-Document Insights panel",
+            "Click each 📄 chip → graph filters to that document's nodes",
+            "Click any node that came from 2+ documents → detail panel shows Sources: file1, file2",
         ],
         narrations=[
-            (3, "We're uploading a Loan Origination SOP — the kind of document that sits in a SharePoint and never gets read. "
-                "The Discovery Engine is extracting every process, role, system, and policy from it automatically."),
-            (4, "What you're seeing is the institutional knowledge of this bank's lending process — extracted in under a minute. "
-                "Every circle is an entity. Every line is a relationship."),
-            (5, "Click any node to see where it came from in the original document."),
+            (3, "Most enterprises don't have ONE document describing a process — they have an SOP, a separate compliance policy, "
+                "a role description from HR, and an IT systems register. The Discovery Engine reads them all together "
+                "and produces ONE unified graph that links the entities across documents."),
+            (5, "Top-left: a chip per source document. The Cross-Document Insights panel below it is the most valuable thing here — "
+                "the engine has compared the four documents and surfaced gaps you'd otherwise need a senior consultant to find. "
+                "Read out one or two of the insights — they typically include compliance gaps, role inconsistencies, and orphan systems."),
+            (6, "Click a chip and the graph filters to nodes from just that document. This is how you trace which document is the source of truth for any entity."),
+            (7, "Sources field on a node tells you it appeared in multiple documents — that means HIGHER confidence. "
+                "If something is in three out of four documents, you can trust it; if it's in one alone, you might want to verify."),
         ],
         callouts=[
             ("Teal circles",   "Processes — AML screening, credit bureau pull, sanctioning"),
-            ("Orange circles", "Roles — Loan Processing Officer, Credit Analyst, Credit Committee"),
-            ("Blue circles",   "Systems — LoanIQ, Compliance Tracker, Document Management System"),
-            ("Red circles",    "Policies — AML Policy, Sanctioning Timeline Policy, DTI Certification Policy"),
+            ("Orange circles", "Roles — Loan Processing Officer, Credit Analyst, Quality Assurance Officer"),
+            ("Blue circles",   "Systems — LoanIQ (LOS), Compliance Tracker, Document Management Portal"),
+            ("Red circles",    "Policies — AML Policy, Sanctioning Timeline Policy, Fair Lending"),
+            ("📄 chips",       "One per uploaded document — colored, clickable, filter the graph"),
+            ("Cross-Doc panel","3 cross-document findings — gap / inconsistency / missing / contradiction"),
         ],
     )
 
     add_step_card(doc,
         step_num=2,
+        title="Dashboard — Health Score and Live Operational Data",
+        duration="≈ 2 min",
+        actions=[
+            "Click the Dashboard nav (after Conformance in the sidebar)",
+            "Point to the SVG ring at the top — Overall Health Score (weighted: Coverage 40% / SLA 35% / Conformance 25%)",
+            "Walk through: 3 metric cards · Graph composition bar chart · Top issues · Live Operational Data section · Completeness checklist",
+            "Click a metric card → it navigates to the source tab",
+            "Click a 'Top issue' item → graph highlights the affected nodes and the relevant tab opens",
+        ],
+        narrations=[
+            (1, "The Dashboard is the executive view. It aggregates everything the engine has discovered into one health score "
+                "and a handful of cards. None of this is a new AI call — it all comes from data the engine has already produced."),
+            (2, "The Live Operational Data section is critical. The engine ships with a local SQLite store of real banking-loan operations data — "
+                "13 sample applications, 71 step executions across 7 process steps. We use that to ground every other feature in actual numbers, "
+                "not just what the SOP says should happen."),
+            (3, "Every issue, every quick win, every metric card is click-through — you can drill from this single screen into any feature."),
+        ],
+    )
+
+    add_step_card(doc,
+        step_num=4,
         title="Gap Analysis",
         duration="≈ 1 min",
         actions=[
@@ -374,7 +406,7 @@ def build():
     )
 
     add_step_card(doc,
-        step_num=3,
+        step_num=5,
         title="Blueprint",
         duration="≈ 1 min",
         actions=[
@@ -390,7 +422,7 @@ def build():
     )
 
     add_step_card(doc,
-        step_num=4,
+        step_num=6,
         title="Pulse Recommendations",
         duration="≈ 1 min",
         actions=[
@@ -407,80 +439,108 @@ def build():
     )
 
     add_step_card(doc,
-        step_num=5,
-        title="Natural Language Query",
+        step_num=7,
+        title="Natural Language Query (with live operational context)",
         duration="≈ 1 min",
         actions=[
             "Click the search icon (NLQ tab) in sidebar",
-            "Type: Who is responsible for AML screening and what system do they use?",
+            "Try a process question: 'Who is responsible for AML screening and what system do they use?'",
             "Wait ~5 seconds (Haiku model)",
-            "Point to highlighted nodes in the graph",
+            "Then try a reality question: 'Which steps have the most SLA breaches and who is performing them?'",
+            "Point to the answer — it cites real numbers (e.g. KYC 15.4% breach, Underwriting 51.8h vs 48h SLA, role mismatches on Credit Check)",
             "Click one of the follow-up questions it suggests",
         ],
         narrations=[
-            (2, "You can now interrogate this organisation's processes in plain English. "
-                "No SQL, no dashboard config — just a question."),
-            (3, "The answer references specific nodes from the graph — it's grounded, not hallucinated."),
-        ],
-    )
-
-    add_step_card(doc,
-        step_num=6,
-        title="Workflow Generation",
-        duration="≈ 2 min",
-        actions=[
-            "Click Generate Workflows button in the header",
-            "Wait ~2 minutes (Sonnet model) — narrate while loading",
-            "When cards appear, expand one (e.g. AML & Compliance Pre-Screening Automation)",
-            "Hover over a step with a role → watch node highlight in the graph",
-        ],
-        narrations=[
-            (1, "The workflow generator takes the knowledge graph and asks: where could automation add value? "
-                "It produces AS-IS versus TO-BE comparisons — what the process looks like today "
-                "versus what it could look like with automation."),
-            (2, "Each workflow shows the current steps, who does them, what system they use, and the SLA status — "
-                "breach, warning, or OK. The TO-BE view shows which steps get automated and the improvement."),
-            (3, "Hovering a step highlights the actual node in the knowledge graph. "
-                "Everything stays connected to the source."),
-        ],
-        tips=["Second click on same file returns workflows instantly (cached)"],
-    )
-
-    add_step_card(doc,
-        step_num=7,
-        title="Conformance Checker",
-        duration="≈ 3 min",
-        actions=[
-            "Click the shield icon in sidebar (Conformance tab)",
-            "Main document (SOP) already shown at the top",
-            "Under Evidence Document — click Choose File → select loan_audit_report.docx",
-            "Click Analyse Conformance",
-            "Wait ~35 seconds",
-            "Point to conformance rate (~47%)",
-            "Click Show All Overlays → colour-coded graph visible",
-            "Click a red deviation card → click View in Graph",
-        ],
-        narrations=[
-            (0, "This is where the Discovery Engine moves from understanding to auditing. "
-                "We have the SOP as our source of truth — the knowledge graph. "
-                "Now we upload an audit report and ask: did reality match the process?"),
-            (5, "47% conformance. More than half the process wasn't followed correctly. "
-                "The Discovery Engine found that automatically — it didn't need a human "
-                "to read both documents and cross-reference them."),
-            (6, "Now the knowledge graph becomes an audit dashboard. "
-                "You can see at a glance where the organisation is compliant and where it isn't."),
-            (7, "Every deviation links to a specific node and quotes the exact evidence from the audit report."),
+            (2, "Plain-English questions about the organisation's processes — no SQL, no dashboard config."),
+            (4, "The first question pulls from the SOP and graph. The second question is the trick — "
+                "the engine doesn't just answer from documents, it grounds the response in live operational data "
+                "from our SQLite store. So instead of saying 'KYC should be done by a Compliance Analyst', "
+                "the answer can say 'KYC has a 15% breach rate across 13 applications and is sometimes done by a Loan Officer'."),
+            (5, "The answer references specific graph nodes AND specific operational facts — it's grounded, not hallucinated."),
         ],
     )
 
     add_step_card(doc,
         step_num=8,
+        title="Workflows — ROI, Automation Scoring, Process Variants, Actual vs SOP",
+        duration="≈ 4 min",
+        actions=[
+            "Click Workflows nav → click Generate (Sonnet model, ~60–90s — narrate while loading)",
+            "When cards appear, expand one (e.g. AML & Compliance Pre-Screening Automation)",
+            "Walk down a single card top-to-bottom:",
+            "  · AS-IS / TO-BE columns — point to a step's 'Actual' sub-block (avg duration / breach % / role mismatches from SQLite)",
+            "  · Estimated annual value (teal headline) — read out the number",
+            "  · Click 'Assumptions used' → show 4–7 banking-grade assumptions (loaded staff cost, NIM, FTE hours)",
+            "  · Benefits strip (4 boxes)",
+            "  · Automation Scoring table — point to the 0–10 colored bars and one row's suggested approach (Rule-based RPA / AI-assisted / Human required)",
+            "  · Process Variants — point to Variant A frequency, then a non-A variant card",
+            "  · Click any step chip in a variant → graph highlights that node",
+            "  · Click anywhere on the variant card → all variant nodes highlight + banner",
+            "  · Read out the Variant Summary card (standard path %, exception rate, biggest TAT driver)",
+        ],
+        narrations=[
+            (1, "ONE Sonnet call returns four things at once for every workflow we propose: "
+                "the AS-IS/TO-BE comparison, an annual ROI estimate, an automation score per step, "
+                "and 2–4 process variants showing how the workflow actually executes across exception paths. "
+                "Going from seven calls to one is what makes this tab usable."),
+            (4, "The 'Actual' sub-block on each AS-IS step is overlaid from our SQLite operational data. "
+                "What the SOP says SHOULD happen, vs what's actually happening across recent applications. "
+                "If a step has a 15% breach rate, you see it RIGHT THERE in the workflow card — you don't have to switch screens."),
+            (5, "ROI: an annual dollar figure with 4–7 banking-industry assumptions you can defend in a steering committee. "
+                "Loaded staff cost, NIM, FTE hours, transaction volume — all stated explicitly. "
+                "No black-box 'Claude said it's $2M.'"),
+            (8, "Automation scoring: 0–10 per step. Green is rule-based RPA, amber is AI-assisted, red is human-required. "
+                "The 'Avg score' and '% automatable' summary tell you whether this whole workflow is even a candidate for automation."),
+            (9, "Process Variants is what process mining gets you — the standard happy path is rarely 100% of cases. "
+                "Variant A is the happy path, then 2–4 exception paths (AML flag, threshold breach, manual override). "
+                "The frequencies sum to 100. When the divergence point matches a known SQLite step, the variant gets a 'Live data' badge — "
+                "we cross-check the AI estimate against actual breach rates."),
+            (12, "Hovering and clicking step chips highlights the underlying graph node. "
+                "Everything in this card is connected to the source graph — nothing is detached."),
+        ],
+        tips=[
+            "Second click on the same upload returns workflows instantly (cached per document hash)",
+            "If you only have a few minutes, demo Workflows AFTER Dashboard — the customer arrives at this card already understanding the bigger picture"
+        ],
+    )
+
+    add_step_card(doc,
+        step_num=9,
+        title="Conformance Checker (file upload OR live operational data)",
+        duration="≈ 3 min",
+        actions=[
+            "Click the shield icon in sidebar (Conformance tab)",
+            "OPTION A — file upload (the classic flow):",
+            "  · Click Choose File → select loan_audit_report.docx",
+            "  · Click Run Conformance Check (~35 seconds)",
+            "OPTION B — live operational data (the new flow):",
+            "  · Below the drop zone, click 'Use live operational data instead'",
+            "  · The engine builds a synthetic evidence document from the SQLite operational store and runs analysis",
+            "Either way: point to conformance rate (~47% on the audit doc, similar on live data)",
+            "Click Show All Overlays → colour-coded graph visible",
+            "Click a red deviation card → graph highlight + evidence excerpt in detail panel",
+        ],
+        narrations=[
+            (0, "Conformance is where the engine moves from understanding to auditing. "
+                "We have the SOP as our source of truth. Now we ask: did reality match it?"),
+            (1, "Two ways to feed in 'reality': drop in an audit report, or use the live operational data we already have in SQLite."),
+            (5, "Both paths run through the SAME conformance pipeline — Sonnet checks every node against the evidence and tags it Confirmed, Deviated, or Not Found. "
+                "The live-data path is the demo killer for stakeholders who don't have an audit report to upload."),
+            (8, "47% conformance on the audit doc — more than half the process wasn't followed correctly. "
+                "The engine found that automatically; no human had to read both documents and cross-reference."),
+            (9, "Every deviation links to a specific node and quotes the exact evidence."),
+        ],
+    )
+
+    add_step_card(doc,
+        step_num=10,
         title="Object Model  (optional)",
         duration="≈ 1 min",
         actions=[
-            "Click Generate Object Model button (top of upload panel)",
-            "Wait ~40s",
+            "Click Object Model nav",
+            "Wait ~40s for first generation (cached after that)",
             "Show Pydantic tab, JSON Schema tab, then Entity Diagram tab",
+            "Click Copy on the Pydantic tab",
         ],
         narrations=[
             (1, "The object model is the bridge from understanding to building. The Discovery Engine "
@@ -489,13 +549,39 @@ def build():
         ],
     )
 
+    add_step_card(doc,
+        step_num=11,
+        title="Generate Executive Report  (the finale)",
+        duration="≈ 1 min",
+        actions=[
+            "Click 'Generate Report' in the top-right of the header",
+            "A new tab opens with a brand-styled HTML page",
+            "Scroll the recipient through the sections quickly: hero, source documents, executive summary, top issues, "
+            "cross-document insights, workflow opportunities (with a total annual ROI roll-up), gap analysis, conformance, live data",
+            "Click the floating 'Save as PDF / Print' button (or Ctrl+P) → save",
+        ],
+        narrations=[
+            (1, "Everything we've shown for the last fifteen minutes — the graph, the workflows, the ROI numbers, the cross-document gaps, "
+                "the conformance rate, the operational data — gets bundled into a single executive report you can email to a CIO or steering committee."),
+            (2, "No new AI calls were made to compose this report. It's pure aggregation of state we already produced. "
+                "That's the discipline — every fact in this document already lives somewhere in the engine."),
+            (3, "The report is print-styled — Ctrl+P saves it as a PDF. Customers walk out of the room with the engine's findings in their inbox before the demo's even over."),
+        ],
+        tips=[
+            "If you only have one slide to leave behind, this PDF is it",
+            "The button is disabled until a graph has been extracted — extract first"
+        ],
+    )
+
     # Closing
     section_heading(doc, "Closing Line")
     doc.add_paragraph()
     add_quote_box(doc,
-        "In 12 minutes we went from a Word document to a knowledge graph, a gap analysis, "
-        "a conformance audit, automation workflows, and a data model. That's the Discovery Engine — "
-        "understanding your organisation before building anything. "
+        "In about fifteen minutes we went from four Word documents to a unified knowledge graph, "
+        "a cross-document gap analysis, an executive dashboard, automation workflows with defensible ROI numbers, "
+        "process variants validated against real operational data, a conformance audit, a data model, "
+        "and a printable executive report — all from documents the customer already has. "
+        "That's the Discovery Engine. Understand your organisation before building anything. "
         "It's the foundation everything else in Metafore sits on."
     )
 
