@@ -19,6 +19,7 @@ from document_parser import parse_document  # noqa: E402
 from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis, generate_cross_doc_insights  # noqa: E402
 import db  # noqa: E402
 import seed_db  # noqa: E402
+import demo_cache  # noqa: E402  # disk-persisted cache for repeat demos
 import report as report_builder  # noqa: E402
 
 # Auto-seed local SQLite demo DB on startup. Idempotent — no-op when already seeded.
@@ -227,7 +228,8 @@ async def graph_sources(graph_id: str):
 @app.post("/api/graph/{graph_id}/cross-doc-insights")
 async def cross_doc_insights_endpoint(graph_id: str):
     """One Haiku call that surfaces cross-document gaps / inconsistencies.
-    Cached per graph_id. 400s when fewer than 2 source documents."""
+    Cached per graph_id (session) and by doc_hash (cross-session, on disk).
+    400s when fewer than 2 source documents."""
     if graph_id in _cross_doc_store:
         return _cross_doc_store[graph_id]
     graph = _graph_store.get(graph_id)
@@ -236,11 +238,20 @@ async def cross_doc_insights_endpoint(graph_id: str):
     sources = _doc_sources_store.get(graph_id, [])
     if len(sources) < 2:
         raise HTTPException(status_code=400, detail="Cross-document insights require 2+ source documents")
+
+    doc_hash = _hash_store.get(graph_id)
+    disk_cached = demo_cache.get(doc_hash, "cross_doc") if doc_hash else None
+    if disk_cached is not None:
+        _cross_doc_store[graph_id] = disk_cached
+        return disk_cached
+
     try:
         result = generate_cross_doc_insights(graph, [s["filename"] for s in sources])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Insights generation failed: {e}")
     _cross_doc_store[graph_id] = result
+    if doc_hash:
+        demo_cache.put(doc_hash, "cross_doc", result)
     return result
 
 
@@ -265,12 +276,17 @@ async def generate_workflows_endpoint(payload: WorkflowRequest):
     if payload.graph_id in _workflow_store:
         return {"workflows": _workflow_store[payload.graph_id]}
 
-    # Cross-session cache: same document uploaded in a different session
+    # Cross-session cache (in-memory + disk): same document uploaded again
     doc_hash = _hash_store.get(payload.graph_id)
     if doc_hash and doc_hash in _workflow_cache:
         workflows = _workflow_cache[doc_hash]
         _workflow_store[payload.graph_id] = workflows
         return {"workflows": workflows}
+    cached = demo_cache.get(doc_hash, "workflows") if doc_hash else None
+    if cached is not None and doc_hash:
+        _workflow_cache[doc_hash] = cached
+        _workflow_store[payload.graph_id] = cached
+        return {"workflows": cached}
 
     doc_text = _doc_store.get(payload.graph_id, "")
     try:
@@ -295,6 +311,7 @@ async def generate_workflows_endpoint(payload: WorkflowRequest):
 
     if doc_hash:
         _workflow_cache[doc_hash] = workflows
+        demo_cache.put(doc_hash, "workflows", workflows)
     _workflow_store[payload.graph_id] = workflows
     return {"workflows": workflows}
 
@@ -309,15 +326,26 @@ async def get_workflows(graph_id: str):
 
 @app.post("/api/generate-object-model")
 async def object_model_endpoint(payload: GraphPayload):
-    """Generate Pydantic models and JSON Schema from an extracted knowledge graph."""
+    """Generate Pydantic models and JSON Schema from an extracted knowledge graph.
+    Cached by graph_id (same session) and by doc_hash (cross-session, on disk)."""
     if payload.graph_id and payload.graph_id in _object_model_store:
         return _object_model_store[payload.graph_id]
+
+    doc_hash = _hash_store.get(payload.graph_id) if payload.graph_id else None
+    cached = demo_cache.get(doc_hash, "object_model") if doc_hash else None
+    if cached is not None:
+        if payload.graph_id:
+            _object_model_store[payload.graph_id] = cached
+        return cached
+
     try:
         result = generate_object_model(payload.dict())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Object model generation failed: {e}")
     if payload.graph_id:
         _object_model_store[payload.graph_id] = result
+    if doc_hash:
+        demo_cache.put(doc_hash, "object_model", result)
     return result
 
 
@@ -504,21 +532,35 @@ async def calculate_gap_analysis(payload: GapRequest):
 
 @app.post("/api/gap-analysis/blueprint")
 async def generate_blueprint_endpoint(payload: BlueprintRequest):
-    """Generate AI blueprint from gap analysis — one Claude call, cached."""
+    """Generate AI blueprint from gap analysis — Claude call, cached by doc_hash."""
     graph = _graph_store.get(payload.graph_id)
     if not graph:
         raise HTTPException(status_code=404, detail="Graph not found")
     gap = _gap_store.get(payload.graph_id)
     if not gap:
         raise HTTPException(status_code=404, detail="Gap analysis not found — run calculate first")
+
+    is_regen = payload.gap_analysis_id.endswith(":regen")
+
+    # Same-session cache
     cached = _blueprint_store.get(payload.graph_id)
-    if cached and not payload.gap_analysis_id.endswith(":regen"):
+    if cached and not is_regen:
         return cached
+
+    # Cross-session cache
+    doc_hash = _hash_store.get(payload.graph_id)
+    disk_cached = demo_cache.get(doc_hash, "blueprint") if doc_hash and not is_regen else None
+    if disk_cached is not None:
+        _blueprint_store[payload.graph_id] = disk_cached
+        return disk_cached
+
     try:
         result = generate_blueprint(graph, gap)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Blueprint generation failed: {e}")
     _blueprint_store[payload.graph_id] = result
+    if doc_hash:
+        demo_cache.put(doc_hash, "blueprint", result)
     return result
 
 
@@ -581,21 +623,31 @@ async def calculate_pulse(payload: PulseRequest):
 
 @app.post("/api/pulse/ai-recommendations")
 async def pulse_ai_recommendations(payload: PulseRequest):
-    """Generate AI strategic recommendations — one Claude call, cached."""
+    """Generate AI strategic recommendations — Claude call, cached by doc_hash."""
     graph = _graph_store.get(payload.graph_id)
     if not graph:
         raise HTTPException(status_code=404, detail="Graph not found")
     pulse = _pulse_store.get(payload.graph_id)
     if not pulse:
         raise HTTPException(status_code=404, detail="Run /api/pulse/calculate first")
+
     cached = _pulse_ai_store.get(payload.graph_id)
     if cached:
         return cached
+
+    doc_hash = _hash_store.get(payload.graph_id)
+    disk_cached = demo_cache.get(doc_hash, "pulse_ai") if doc_hash else None
+    if disk_cached is not None:
+        _pulse_ai_store[payload.graph_id] = disk_cached
+        return disk_cached
+
     try:
         result = generate_pulse_ai(graph, pulse.get("items", []))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pulse AI failed: {e}")
     _pulse_ai_store[payload.graph_id] = result
+    if doc_hash:
+        demo_cache.put(doc_hash, "pulse_ai", result)
     return result
 
 
@@ -697,6 +749,7 @@ async def health():
         "status":          "ok",
         "neo4j_enabled":   ENABLE_NEO4J,
         "demo_db_seeded":  db.has_table("process_steps") and db.row_count("process_steps") > 0,
+        "demo_cache":      demo_cache.stats(),
     }
 
 
