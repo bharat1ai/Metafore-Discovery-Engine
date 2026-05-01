@@ -106,6 +106,11 @@ async function fetchAndRenderGraphSources(graphId) {
     const data = await res.json();
     const docs = data.documents || [];
     if (!docs.length) { wrap.hidden = true; return; }
+    // Cache source filenames on the graph so the header can show the doc name
+    if (currentGraph) {
+      currentGraph._sourceFilenames = docs.map(d => d.filename).filter(Boolean);
+      _updateHeaderGraphName(currentGraph);
+    }
     labelE.textContent = docs.length === 1
       ? 'Knowledge Graph — 1 document'
       : `Knowledge Graph — ${docs.length} documents`;
@@ -236,6 +241,33 @@ const statNodes       = document.getElementById('stat-nodes');
 const statEdges       = document.getElementById('stat-edges');
 const chipNodeEl      = document.getElementById('chip-nodes');
 const chipEdgeEl      = document.getElementById('chip-edges');
+const chipCoverageEl  = document.getElementById('chip-coverage');
+const chipConformEl   = document.getElementById('chip-conformance');
+const statCoverage    = document.getElementById('stat-coverage');
+const statConformance = document.getElementById('stat-conformance');
+const headerGraphName = document.getElementById('header-graphname');
+
+function _updateHeaderGraphName(_graph) {
+  // Filename intentionally omitted from the header per design feedback.
+  if (headerGraphName) headerGraphName.textContent = '';
+}
+
+function _setHeaderStat(chipEl, valEl, value, tone) {
+  if (!chipEl || !valEl) return;
+  if (value == null || value === '') {
+    chipEl.hidden = true;
+    return;
+  }
+  valEl.textContent = value;
+  chipEl.hidden = false;
+  chipEl.classList.remove('tone-ok', 'tone-warn', 'tone-bad');
+  if (tone) chipEl.classList.add('tone-' + tone);
+}
+
+function _toneFromScore(v, goodAt = 70, warnAt = 50) {
+  if (v == null || isNaN(v)) return null;
+  return v >= goodAt ? 'ok' : v >= warnAt ? 'warn' : 'bad';
+}
 const legendSection   = document.getElementById('legend-section');
 const legendList      = document.getElementById('legend-list');
 const detailPanel     = document.getElementById('detail-panel');
@@ -487,6 +519,9 @@ function renderGraph(graph) {
   statEdges.textContent = edges.length;
   chipNodeEl.hidden = false;
   chipEdgeEl.hidden = false;
+
+  /* Header graph name — pulled from the source filenames if available */
+  _updateHeaderGraphName(graph);
 
   /* Legend */
   buildLegend([...new Set(nodes.map(n => n.type))].sort());
@@ -1467,6 +1502,7 @@ async function runGapAnalysis() {
     gapBlueprintPre.hidden    = false;
     gapBlueprintResult.hidden = true;
     renderGapResults(gapAnalysisResult);
+    _setHeaderStat(chipCoverageEl, statCoverage, gapAnalysisResult?.coverage_score ?? null, _toneFromScore(gapAnalysisResult?.coverage_score));
   } catch (e) {
     alert(`Gap analysis failed:\n${e.message}`);
     gapEmptyState.hidden = false;
@@ -2029,6 +2065,9 @@ async function confRunAnalysis() {
     }
     conformanceResult = await res.json();
     confRenderResults(conformanceResult);
+    _setHeaderStat(chipConformEl, statConformance,
+      conformanceResult?.overall_conformance_rate != null ? `${conformanceResult.overall_conformance_rate}%` : null,
+      _toneFromScore(conformanceResult?.overall_conformance_rate, 80, 60));
   } catch (e) {
     alert(`Conformance analysis failed:\n${e.message}`);
   } finally {
@@ -2680,6 +2719,9 @@ btnReset.addEventListener('click', () => {
   closeDetailPanel();
   chipNodeEl.hidden = true;
   chipEdgeEl.hidden = true;
+  if (chipCoverageEl) chipCoverageEl.hidden = true;
+  if (chipConformEl)  chipConformEl.hidden  = true;
+  if (headerGraphName) headerGraphName.textContent = '';
   document.querySelectorAll('.cache-chip').forEach(el => el.remove());
   legendSection.hidden = true;
   legendList.innerHTML = '';

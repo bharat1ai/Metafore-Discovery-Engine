@@ -4,48 +4,76 @@
 
 :root {
   /* Brand */
-  --brand:       #036868;
-  --brand-dark:  #024F4F;
-  --brand-mid:   #007F7F;
-  --brand-light: #E6F4F4;
-  --brand-border:#0a9090;
+  --brand:        #036868;
+  --brand-dark:   #024F4F;
+  --brand-mid:    #007F7F;
+  --brand-light:  #E6F4F4;
+  --brand-border: #0a9090;
+  --teal-accent:  #00989E;
+  --teal-bright:  #00C4CC;   /* primary CTA accent */
 
   /* Surface */
-  --bg:          #EEF6F6;
-  --bg-card:     #F7FAFA;
-  --bg-panel:    #E6F4F4;
-  --bg-hover:    #D8EEEE;
-  --border:      #C4E0E0;
-  --border-light:#D0E8E8;
+  --bg:           #EDF1F1;
+  --bg-card:      #FFFFFF;
+  --bg-soft:      #F8FAFA;
+  --bg-panel:     #E6F4F4;
+  --bg-hover:     #D8EEEE;
+
+  /* Glass panels (rgba teal) — used with backdrop-filter */
+  --panel:        rgba(0,107,111,0.06);
+  --panel-hi:     rgba(0,107,111,0.03);
+  --panel-solid:  rgba(0,107,111,0.09);
+
+  /* Borders */
+  --border:        rgba(0,107,111,0.12);
+  --border-hi:     rgba(0,107,111,0.20);
+  --border-strong: rgba(0,107,111,0.32);
+  --border-light:  #D0E8E8;   /* legacy — kept for backwards compat */
 
   /* Text */
-  --text:        #0f2020;
-  --text-sec:    #4a6868;
-  --text-muted:  #7a9a9a;
+  --text:        #1A1A1A;
+  --text-sec:    #404040;
+  --text-mid:    #404040;
+  --text-dim:    #666666;
+  --text-muted:  #666666;
+  --text-faint:  #999999;
   --text-white:  #ffffff;
 
-  /* Status */
-  --critical:    #ef4444;
+  /* Status quintet */
+  --d-green:    #00C896;
+  --d-amber:    #FFB800;
+  --d-red:      #FF6B4A;
+  --d-blue:     #4A90FF;
+  --d-violet:   #7C4FE0;
+
+  /* Status (legacy aliases for existing rules) */
+  --critical:    var(--d-red);
   --high:        #f97316;
-  --medium:      #eab308;
-  --low:         #22c55e;
-  --info:        #3b82f6;
-  --purple:      #a855f7;
+  --medium:      var(--d-amber);
+  --low:         var(--d-green);
+  --info:        var(--d-blue);
+  --purple:      var(--d-violet);
 
   /* Node type colours */
-  --c-process:    #3b82f6;
+  --c-process:    var(--d-blue);
   --c-role:       #f97316;
-  --c-system:     #22c55e;
-  --c-policy:     #ef4444;
-  --c-dataentity: #a855f7;
-  --c-event:      #eab308;
+  --c-system:     var(--d-green);
+  --c-policy:     var(--d-red);
+  --c-dataentity: var(--d-violet);
+  --c-event:      var(--d-amber);
+
+  /* Shadows */
+  --shadow-sm:    0 1px 2px 0 rgba(0,0,0,0.05);
+  --shadow-md:    0 4px 6px -1px rgba(0,0,0,0.08);
+  --shadow-lg:    0 10px 15px -3px rgba(0,0,0,0.08);
+  --shadow-teal:  0 10px 30px rgba(0,107,111,0.12);
 
   /* Fonts */
   --sans: 'GT America', 'Inter', -apple-system, sans-serif;
   --mono: 'IBM Plex Mono', 'SF Mono', 'Consolas', monospace;
 
   /* Layout */
-  --sidebar-w:   200px;
+  --sidebar-w:   48px;     /* design-spec icon-only rail */
   --header-h:    56px;
   --panel-w:     360px;
   --detail-w:    320px;
@@ -57,6 +85,92 @@ html, body {
   font-size: 13px;
   color: var(--text);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Design-system primitives ───────────────────────────────────────────── */
+
+/* Pill — small rounded full status indicator with mono label, uppercase */
+.ds-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  font-family: var(--mono);
+  border: 1px solid;
+  white-space: nowrap;
+}
+.ds-pill-ok    { background: rgba(0,200,150,0.12);  color: #00936b; border-color: rgba(0,200,150,0.28); }
+.ds-pill-warn  { background: rgba(255,184,0,0.12);  color: #b87f00; border-color: rgba(255,184,0,0.28); }
+.ds-pill-bad   { background: rgba(255,107,74,0.12); color: #c2421a; border-color: rgba(255,107,74,0.28); }
+.ds-pill-info  { background: rgba(74,144,255,0.12); color: #2563d4; border-color: rgba(74,144,255,0.28); }
+.ds-pill-brand { background: var(--brand-light); color: var(--brand-dark); border-color: var(--border-hi); }
+.ds-pill-crit  { background: var(--d-red); color: #fff; border-color: var(--d-red); }
+
+/* Chip — slightly larger rounded label, mono, with optional tone */
+.ds-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px; font-weight: 500;
+  padding: 3px 8px; border-radius: 6px;
+  letter-spacing: 0.04em;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text-mid);
+}
+.ds-chip-strong { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* Stat chip — for header (dark background) */
+.ds-statchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,0.20);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 6px;
+  padding: 4px 9px;
+  backdrop-filter: blur(4px);
+}
+.ds-statchip.tone-ok   { background: rgba(0,200,150,0.18);  border-color: rgba(0,200,150,0.30); }
+.ds-statchip.tone-warn { background: rgba(255,184,0,0.18);  border-color: rgba(255,184,0,0.30); }
+.ds-statchip.tone-bad  { background: rgba(255,107,74,0.18); border-color: rgba(255,107,74,0.30); }
+.ds-statchip-val {
+  font-family: var(--mono);
+  font-weight: 700; font-size: 12px;
+  color: #fff; letter-spacing: -0.02em;
+}
+.ds-statchip-lbl {
+  font-size: 10px; color: rgba(255,255,255,0.72);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+/* Glass card — used inside panels */
+.ds-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.ds-card-tight { border-radius: 8px; padding: 12px; }
+.ds-card-solid { background: var(--bg-card); }
+
+/* Section label — small, uppercase, dim */
+.ds-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Mono numerics — tighten letter-spacing across the board */
+.ds-mono-num {
+  font-family: var(--mono);
+  letter-spacing: -0.02em;
+  font-weight: 700;
 }
 
 /* ── App shell ── */
@@ -67,99 +181,82 @@ html, body {
   overflow: hidden;
 }
 
-/* ── Sidebar ── */
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/* ── Sidebar — 48px icon-only rail ───────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
-  background: linear-gradient(180deg, var(--brand-mid) 0%, var(--brand-dark) 100%);
+  background: var(--brand-mid);
   display: flex;
   flex-direction: column;
+  align-items: center;
   z-index: 10;
-  border-right: 1px solid rgba(0,0,0,0.12);
-  box-shadow: 1px 0 0 rgba(255,255,255,0.04) inset;
+  border-right: 1px solid rgba(0,0,0,0.10);
 }
 
 .sidebar-logo {
   height: var(--header-h);
-  display: flex; align-items: center;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.10);
+  width: 100%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--brand-dark);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0;
 }
 .sidebar-logo img {
+  width: 26px; height: 26px;
   opacity: 0.95;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.18));
 }
-.sidebar-brand {
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
-  margin-left: 11px;
-  letter-spacing: 0.005em;
-  white-space: nowrap;
-}
+.sidebar-brand { display: none; }   /* hidden in icon-only rail; tooltip is on the logo */
 
 .sidebar-nav {
   display: flex; flex-direction: column;
-  gap: 3px; flex: 1;
-  padding: 14px 10px;
+  gap: 2px; flex: 1;
+  padding: 10px 0;
+  width: 100%;
+  align-items: center;
   overflow-y: auto;
 }
+.sidebar-nav::-webkit-scrollbar { width: 0; }
 
 .sidebar-bottom {
-  display: flex; flex-direction: column; gap: 3px;
-  padding: 10px;
+  display: flex; flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
   border-top: 1px solid rgba(255,255,255,0.10);
+  width: 100%;
+  align-items: center;
 }
+
+.nav-label { display: none; }   /* hidden in icon-only rail; .title attribute provides tooltip */
 
 .nav-btn {
   position: relative;
-  width: 100%;
+  width: 36px; height: 36px;
   border-radius: 8px;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255,255,255,0.78);
   cursor: pointer;
-  display: flex; align-items: center; gap: 11px;
-  padding: 9px 11px;
-  font-family: var(--sans);
-  font-size: 12px; font-weight: 500;
-  transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s;
-  text-align: left;
-  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.18s, color 0.18s;
 }
-.nav-btn:hover {
-  background: rgba(255,255,255,0.10);
-  color: #fff;
-  border-color: rgba(255,255,255,0.06);
-}
+.nav-btn:hover { background: rgba(255,255,255,0.10); color: #fff; }
 .nav-btn.active {
   background: rgba(255,255,255,0.18);
   color: #fff;
-  border-color: rgba(255,255,255,0.18);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12), inset 0 0 0 1px rgba(255,255,255,0.04);
 }
 .nav-btn.active::before {
   content: '';
   position: absolute;
-  left: -2px; top: 8px; bottom: 8px;
-  width: 3px;
-  background: #fff;
-  border-radius: 0 2px 2px 0;
-  opacity: 0.95;
+  left: -6px; top: 8px; bottom: 8px;
+  width: 2px;
+  background: var(--teal-bright);
+  border-radius: 2px;
 }
-.nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.nav-btn:disabled:hover {
-  background: transparent;
-  color: rgba(255,255,255,0.65);
-  border-color: transparent;
-}
+.nav-btn:disabled { opacity: 0.40; cursor: not-allowed; }
+.nav-btn:disabled:hover { background: transparent; color: rgba(255,255,255,0.65); }
 .nav-btn svg { flex-shrink: 0; opacity: 0.92; }
 .nav-btn.active svg { opacity: 1; }
-
-.nav-label { flex: 1; letter-spacing: 0.005em; }
 
 .sidebar-pulse-wrap {
   position: relative;
@@ -168,6 +265,7 @@ html, body {
 }
 .sidebar-pulse-wrap .pulse-badge {
   top: -7px; right: -9px;
+  box-shadow: 0 0 0 2px var(--brand-mid);
 }
 
 /* ── Main column ── */
@@ -179,51 +277,78 @@ html, body {
   min-width: 0;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
+/* ── Header — One · Discovery + graph name + stat chips ─────────────────── */
 .header {
   height: var(--header-h);
-  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-dark) 100%);
+  background: var(--brand);
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 18px;
   flex-shrink: 0;
-  gap: 12px;
-  border-bottom: 1px solid rgba(0,0,0,0.16);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 6px rgba(0,0,0,0.08);
+  gap: 14px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.08);
 }
 
-.header-left  { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
-.header-logo  { height: 20px; object-fit: contain; }
-.header-brand { display: flex; align-items: center; gap: 8px; }
-.header-mmark { flex-shrink: 0; }
-
-.header-brand-name {
-  font-size: 15px; font-weight: 600;
-  color: #fff; letter-spacing: -0.01em;
+.header-brand {
+  display: flex; align-items: center;
+  gap: 10px; color: #fff;
+}
+.header-logo { height: 22px; object-fit: contain; }
+.header-one {
+  font-weight: 700;
+  font-size: 17px;
+  color: #fff;
+  letter-spacing: -0.01em;
 }
 .header-product {
-  font-size: 11px; font-weight: 600;
-  color: rgba(255,255,255,0.78);
-  letter-spacing: 0.16em;
+  font-weight: 300;
+  font-size: 13px;
+  color: rgba(255,255,255,0.72);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-
 .header-divider {
   width: 1px; height: 22px;
   background: rgba(255,255,255,0.18);
-  margin: 0 6px;
 }
+.header-graphname {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.94);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+.header-graphname:empty { display: none; }
 
-/* Stats chips */
+/* Legacy stat chip class — restyled to match design (also overridable via .ds-statchip primitives) */
 .stat-chip {
-  display: flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
   background: rgba(0,0,0,0.20);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.10);
   border-radius: 6px;
-  padding: 4px 10px;
+  padding: 4px 9px;
   backdrop-filter: blur(4px);
 }
 .cache-chip {
@@ -237,40 +362,53 @@ html, body {
 }
 .chip-val {
   font-family: var(--mono);
-  font-size: 13px; font-weight: 700;
+  font-weight: 700; font-size: 12px;
   color: #fff;
   letter-spacing: -0.02em;
 }
 .chip-label {
-  font-size: 10px; color: rgba(255,255,255,0.7);
-  text-transform: uppercase; letter-spacing: 0.08em;
+  font-size: 10px;
+  color: rgba(255,255,255,0.72);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   font-weight: 600;
 }
 
 /* Header actions */
 .btn-header {
-  display: inline-flex; align-items: center;
-  background: rgba(255,255,255,0.14);
-  border: 1px solid rgba(255,255,255,0.22);
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
   border-radius: 7px;
   color: #fff;
   font-family: var(--sans);
   font-size: 12px; font-weight: 600;
-  padding: 7px 14px;
+  padding: 6px 12px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.12s, box-shadow 0.15s;
-  letter-spacing: 0.01em;
-  backdrop-filter: blur(6px);
+  letter-spacing: 0.005em;
 }
 .btn-header:hover:not(:disabled) {
-  background: rgba(255,255,255,0.22);
-  border-color: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.20);
+  border-color: rgba(255,255,255,0.32);
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
 }
 .btn-header:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-header svg { margin-right: 7px; flex-shrink: 0; opacity: 0.92; }
-.btn-report { letter-spacing: 0.02em; }
+.btn-header svg { flex-shrink: 0; opacity: 0.92; }
+
+/* Primary action: tealBright on brandDark text — design spec primary CTA */
+.btn-header.btn-report {
+  background: var(--teal-bright);
+  border-color: transparent;
+  color: var(--brand-dark);
+}
+.btn-header.btn-report:hover:not(:disabled) {
+  background: #00DDE6;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(0,196,204,0.30);
+}
+.btn-header.btn-report svg { stroke: var(--brand-dark); opacity: 1; }
 
 /* ── Body area ── */
 .body-area {
