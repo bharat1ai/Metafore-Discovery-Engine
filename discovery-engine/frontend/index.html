@@ -26,40 +26,39 @@
 
 <div class="app-shell">
 
-  <!-- ── Left sidebar (200px labeled nav) ── -->
+  <!-- ── Left sidebar (48px icon rail per design spec) ── -->
   <aside class="sidebar">
-    <div class="sidebar-logo">
-      <img src="metafore-logo.png" alt="Metafore" width="28" height="28" />
-      <span class="sidebar-brand">Metafore Works</span>
+    <div class="sidebar-logo" title="Metafore One">
+      <img src="metafore-logo.png" alt="Metafore" width="26" height="26" />
     </div>
     <nav class="sidebar-nav">
-      <button class="nav-btn active" id="nav-graph">
+      <button class="nav-btn active" id="nav-graph" title="Knowledge Graph">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
           <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
         </svg>
         <span class="nav-label">Knowledge Graph</span>
       </button>
-      <button class="nav-btn" id="nav-workflows">
+      <button class="nav-btn" id="nav-workflows" title="Workflows">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
         </svg>
         <span class="nav-label">Workflows</span>
       </button>
-      <button class="nav-btn" id="nav-gap">
+      <button class="nav-btn" id="nav-gap" title="Gap Analysis">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 11l3 3L22 4"/>
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
         </svg>
         <span class="nav-label">Gap Analysis</span>
       </button>
-      <button class="nav-btn" id="nav-conformance">
+      <button class="nav-btn" id="nav-conformance" title="Conformance">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
         <span class="nav-label">Conformance</span>
       </button>
-      <button class="nav-btn" id="nav-dashboard">
+      <button class="nav-btn" id="nav-dashboard" title="Dashboard">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="7" height="9"/>
           <rect x="14" y="3" width="7" height="5"/>
@@ -68,15 +67,17 @@
         </svg>
         <span class="nav-label">Dashboard</span>
       </button>
-      <button class="nav-btn" id="nav-object-model">
+      <button class="nav-btn" id="nav-object-model" title="Object Model">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
         </svg>
         <span class="nav-label">Object Model</span>
       </button>
     </nav>
     <div class="sidebar-bottom">
-      <button class="nav-btn" id="btn-pulse" disabled>
+      <button class="nav-btn" id="btn-pulse" disabled title="Pulse — alerts &amp; AI recommendations">
         <span class="sidebar-pulse-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -86,7 +87,7 @@
         </span>
         <span class="nav-label">Pulse</span>
       </button>
-      <button class="nav-btn" id="btn-reset">
+      <button class="nav-btn" id="btn-reset" title="Reset workspace">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="1 4 1 10 7 10"/>
           <path d="M3.51 15a9 9 0 1 0 .49-3.16"/>
@@ -99,27 +100,47 @@
   <!-- ── Main column ── -->
   <div class="main-column">
 
-    <!-- Header -->
+    <!-- Header — "One · Discovery" + graph name + stat chips -->
     <header class="header">
       <div class="header-left">
-        <span class="header-product">DISCOVERY ENGINE</span>
-        <div class="header-divider"></div>
-        <div class="stat-chip" id="chip-nodes" hidden>
-          <span class="chip-val" id="stat-nodes">0</span>
-          <span class="chip-label">Nodes</span>
+        <div class="header-brand">
+          <img class="header-logo" src="metafore-logo-horizontal.png" alt="Metafore" />
+          <span class="header-one">One</span>
+          <span class="header-product">Discovery</span>
         </div>
-        <div class="stat-chip" id="chip-edges" hidden>
-          <span class="chip-val" id="stat-edges">0</span>
-          <span class="chip-label">Edges</span>
+        <div class="header-divider"></div>
+        <span class="header-graphname" id="header-graphname"></span>
+      </div>
+      <div class="header-stats">
+        <div class="stat-chip ds-statchip" id="chip-nodes" hidden>
+          <span class="chip-val ds-statchip-val" id="stat-nodes">0</span>
+          <span class="chip-label ds-statchip-lbl">Nodes</span>
+        </div>
+        <div class="stat-chip ds-statchip" id="chip-edges" hidden>
+          <span class="chip-val ds-statchip-val" id="stat-edges">0</span>
+          <span class="chip-label ds-statchip-lbl">Edges</span>
+        </div>
+        <div class="stat-chip ds-statchip" id="chip-coverage" hidden>
+          <span class="chip-val ds-statchip-val" id="stat-coverage">—</span>
+          <span class="chip-label ds-statchip-lbl">Coverage</span>
+        </div>
+        <div class="stat-chip ds-statchip" id="chip-conformance" hidden>
+          <span class="chip-val ds-statchip-val" id="stat-conformance">—</span>
+          <span class="chip-label ds-statchip-lbl">Conform.</span>
         </div>
       </div>
       <div class="header-right">
+        <button class="btn-header" id="btn-export" disabled title="Export current view (coming soon)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Export</span>
+        </button>
         <button class="btn-header btn-report" id="btn-generate-report" disabled title="Generate a printable executive report from current state">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="9" y1="13" x2="15" y2="13"/>
-            <line x1="9" y1="17" x2="15" y2="17"/>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>
           </svg>
           <span>Generate Report</span>
         </button>
