@@ -387,6 +387,72 @@ def generate_pulse_ai(graph: dict, pulse_items: list) -> dict:
     return _call_tool(PULSE_AI_SYSTEM, prompt, PULSE_AI_TOOL, model=HAIKU, max_tokens=2048)
 
 
+PM_OPTIMISE_TOOL = {
+    "name": "suggest_process_optimisations",
+    "description": "Given a process-mining snapshot (KPIs, activities, deviation patterns), produce 3-5 specific re-routing or SLA-target suggestions.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "summary": {
+                "type": "string",
+                "description": "1-2 sentence diagnosis: name the bottleneck and the single most impactful change.",
+            },
+            "recommendations": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 5,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title":            {"type": "string", "description": "Short imperative — e.g. 'Auto-route low-value loans to Junior Underwriter'"},
+                        "rationale":        {"type": "string", "description": "1 sentence: which deviation/bottleneck this addresses."},
+                        "expected_impact":  {"type": "string", "description": "Quantitative or qualitative — e.g. '−1.4d median TAT' or 'eliminate wrong-role events'"},
+                        "effort":           {"type": "string", "enum": ["low", "medium", "high"]},
+                        "target_step":      {"type": "string", "description": "Which process step (activity) this targets, if any. Empty string if cross-cutting."},
+                    },
+                    "required": ["title", "rationale", "expected_impact", "effort", "target_step"],
+                },
+            },
+        },
+        "required": ["summary", "recommendations"],
+    },
+}
+
+PM_OPTIMISE_SYSTEM = (
+    "You are a process-mining expert advising a mid-size bank on loan-origination operations. "
+    "Given the SOP-vs-execution data below, propose specific, actionable optimisations. "
+    "Be concrete (mention real step names, role swaps, threshold rules). "
+    "Always call the suggest_process_optimisations tool."
+)
+
+
+def generate_pm_optimise(pm_data: dict) -> dict:
+    """Take the process-mining JSON shape and ask Haiku for 3-5 optimisations."""
+    k = pm_data.get("kpis", {})
+    activities = pm_data.get("activities", [])
+    patterns   = pm_data.get("conformance", {}).get("deviation_patterns", [])
+    bottleneck = k.get("bottleneck_step") or "(none flagged)"
+
+    act_lines = []
+    for a in activities:
+        bits = [f"{a['id']}: {a['case_count']} cases, dwell {a.get('median_dwell_hours')}h vs SLA {a.get('sla_hours')}h"]
+        if a.get("breach_count"):       bits.append(f"{a['breach_count']} breaches")
+        if a.get("role_mismatch_count"): bits.append(f"{a['role_mismatch_count']} wrong-role")
+        act_lines.append("- " + "; ".join(bits))
+
+    pat_lines = [f"- [{p['severity']}] {p['label']} ({p['case_count']} cases)" for p in patterns]
+
+    prompt = (
+        f"Process-mining snapshot — {k.get('total_cases')} cases, {k.get('total_activities')} activities.\n"
+        f"Median TAT {k.get('median_tat_days')}d. SLA breach rate {k.get('breach_rate_pct')}%. "
+        f"Conformance fitness {k.get('fitness')}. Bottleneck: {bottleneck}.\n\n"
+        f"Activities:\n" + "\n".join(act_lines) + "\n\n"
+        f"Deviation patterns:\n" + ("\n".join(pat_lines) if pat_lines else "(none)") + "\n\n"
+        "Propose 3-5 concrete optimisations. Prioritise the bottleneck and the highest-severity deviation patterns."
+    )
+    return _call_tool(PM_OPTIMISE_SYSTEM, prompt, PM_OPTIMISE_TOOL, model=HAIKU, max_tokens=1500)
+
+
 BLUEPRINT_TOOL = {
     "name": "generate_blueprint",
     "description": "Generate an enterprise blueprint summary and improvement roadmap from a knowledge graph and gap analysis.",

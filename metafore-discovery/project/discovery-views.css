@@ -1,0 +1,2 @@
+/* tiny shared CSS for views layer */
+@keyframes mf-slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }

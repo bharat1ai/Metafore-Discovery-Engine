@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Discovery Engine — Production Redesign</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  @font-face { font-family:'GT America'; src:url('assets/GT-America-Standard-Regular.otf') format('opentype'); font-weight:400; font-style:normal; font-display:swap; }
+  @font-face { font-family:'GT America'; src:url('assets/GT-America-Standard-Medium.otf') format('opentype'); font-weight:500; font-style:normal; font-display:swap; }
+  @font-face { font-family:'GT America'; src:url('assets/GT-America-Standard-Bold.otf') format('opentype'); font-weight:700; font-style:normal; font-display:swap; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  html, body { margin:0; padding:0; background:#EDF1F1; font-family:'GT America','Inter',-apple-system,sans-serif; color:#1A1A1A; -webkit-font-smoothing:antialiased; }
+  *, *::before, *::after { box-sizing:border-box; }
+  button { font-family:inherit; }
+  input, textarea { font-family:inherit; color:inherit; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:rgba(0,107,111,0.20); border-radius:999px; border:2px solid transparent; background-clip:padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background:rgba(0,107,111,0.32); border:2px solid transparent; background-clip:padding-box; }
+</style>
+<link rel="stylesheet" href="discovery-views.css"/>
+</head>
+<body>
+
+<div id="root"></div>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Demo data + design system primitives + view modules -->
+<script type="text/babel" src="discovery-data.jsx"></script>
+<script type="text/babel" src="discovery-primitives.jsx"></script>
+<script type="text/babel" src="discovery-graph.jsx"></script>
+<script type="text/babel" src="discovery-views.jsx"></script>
+<script type="text/babel" src="discovery-process-mining.jsx"></script>
+
+<!-- Design canvas + tweaks shell -->
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "nodeStyle": "filled",
+  "showLegend": true,
+  "panelTone": "soft"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  return (
+    <>
+      <DesignCanvas
+        title="Metafore One — Discovery Engine"
+        subtitle="Production redesign · 6 core views, refined visual system, brand-aligned"
+        defaultZoom={0.62}
+      >
+        <DCSection id="hero" title="01 — Knowledge Graph (hero)" subtitle="Upload SOPs/audits → AI-extracted graph with inspector, NLQ, and cross-document insights">
+          <DCArtboard id="kg" label="Knowledge Graph view" width={1440} height={900}>
+            <KnowledgeGraphView nodeStyle={tweaks.nodeStyle}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="dashboard" title="02 — Workspace Dashboard" subtitle="Bird's-eye overview · KPIs, recent graphs, activity, distribution, pulse">
+          <DCArtboard id="dash" label="Dashboard" width={1440} height={900}>
+            <DashboardView/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="conformance" title="03 — Conformance" subtitle="Compare evidence (audit reports) against extracted process graph · highlight deviations">
+          <DCArtboard id="conf" label="Conformance Checker" width={1440} height={900}>
+            <ConformanceView/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="gap" title="04 — Gap Analysis & Blueprint" subtitle="Coverage scoring, completeness checks, and AI blueprint recommendations">
+          <DCArtboard id="gap" label="Gap Analysis" width={1440} height={900}>
+            <GapAnalysisView/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="workflows" title="05 — Workflows (AS-IS / TO-BE)" subtitle="Generated process variants from the graph · with TAT and ownership">
+          <DCArtboard id="wf" label="Workflows · simple" width={1440} height={900}>
+            <WorkflowsView/>
+          </DCArtboard>
+          <DCArtboard id="wf-pm" label="Workflows · process mining (Celonis-style)" width={1440} height={900}>
+            <ProcessMiningView/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="om" title="06 — Object Model" subtitle="ERD + Pydantic + JSON Schema export from the BRD">
+          <DCArtboard id="om" label="Object Model" width={1440} height={900}>
+            <ObjectModelView/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="pulse" title="07 — Pulse Drawer (overlay state)" subtitle="Slide-in panel for cross-graph alerts and recommended actions">
+          <DCArtboard id="pulse" label="Pulse drawer" width={1440} height={900}>
+            <PulseDrawerView/>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Visualization">
+          <TweakRadio label="Node style" value={tweaks.nodeStyle}
+            onChange={v=>setTweak('nodeStyle', v)}
+            options={[
+              {value:'filled', label:'Filled'},
+              {value:'outlined', label:'Outlined'},
+              {value:'icon', label:'Type letter'},
+            ]}/>
+          <TweakToggle label="Show legend" value={tweaks.showLegend} onChange={v=>setTweak('showLegend', v)}/>
+        </TweakSection>
+        <TweakSection title="Panels">
+          <TweakRadio label="Panel tone" value={tweaks.panelTone}
+            onChange={v=>setTweak('panelTone', v)}
+            options={[
+              {value:'soft', label:'Soft glass'},
+              {value:'solid', label:'Solid'},
+            ]}/>
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Discovery Engine — Print</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  @page { size: 1440px 900px; margin: 0; }
+  @font-face { font-family:'GT America'; src:url('assets/GT-America-Standard-Regular.otf') format('opentype'); font-weight:400; font-style:normal; font-display:swap; }
+  @font-face { font-family:'GT America'; src:url('assets/GT-America-Standard-Medium.otf') format('opentype'); font-weight:500; font-style:normal; font-display:swap; }
+  @font-face { font-family:'GT America'; src:url('assets/GT-America-Standard-Bold.otf') format('opentype'); font-weight:700; font-style:normal; font-display:swap; }
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  html, body { margin:0; padding:0; background:#fff; font-family:'GT America','Inter',-apple-system,sans-serif; color:#1A1A1A; -webkit-font-smoothing:antialiased; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  *, *::before, *::after { box-sizing:border-box; }
+  button { font-family:inherit; }
+  input, textarea { font-family:inherit; color:inherit; }
+
+  .print-stack { display:flex; flex-direction:column; gap:0; }
+  .print-page  { width:1440px; height:900px; overflow:hidden; position:relative; background:#F8FAFA; break-after:page; page-break-after:always; }
+  .print-page:last-child { break-after:auto; page-break-after:auto; }
+
+  /* hide tweaks/canvas chrome if any leaks in */
+  [data-tweaks-panel], .dc-toolbar, .dc-zoom-controls, .dc-section-header { display:none !important; }
+  ::-webkit-scrollbar { display:none; }
+  * { scrollbar-width: none; }
+
+  @media print {
+    body { background:#fff; }
+    .print-page { box-shadow:none !important; }
+  }
+</style>
+<link rel="stylesheet" href="discovery-views.css"/>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="discovery-data.jsx"></script>
+<script type="text/babel" src="discovery-primitives.jsx"></script>
+<script type="text/babel" src="discovery-graph.jsx"></script>
+<script type="text/babel" src="discovery-views.jsx"></script>
+<script type="text/babel" src="discovery-process-mining.jsx"></script>
+
+<script type="text/babel">
+const PAGES = [
+  { label:'01 — Knowledge Graph',          C: KnowledgeGraphView },
+  { label:'02 — Workspace Dashboard',      C: DashboardView },
+  { label:'03 — Conformance',              C: ConformanceView },
+  { label:'04 — Gap Analysis & Blueprint', C: GapAnalysisView },
+  { label:'05a — Workflows · Simple',      C: WorkflowsView },
+  { label:'05b — Workflows · Process Mining (Celonis-style)', C: ProcessMiningView },
+  { label:'06 — Object Model',             C: ObjectModelView },
+  { label:'07 — Pulse Drawer',             C: PulseDrawerView },
+];
+
+function PrintApp() {
+  return (
+    <div className="print-stack">
+      {PAGES.map((p,i)=>(
+        <div key={i} className="print-page">
+          <p.C/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<PrintApp/>);
+
+// Auto-print after fonts + Babel-transformed scripts settle
+(async function autoPrint(){
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(_) {}
+  // wait for React render
+  await new Promise(r => setTimeout(r, 1500));
+  window.print();
+})();
+</script>
+</body>
+</html>

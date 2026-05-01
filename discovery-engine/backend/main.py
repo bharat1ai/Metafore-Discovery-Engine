@@ -16,7 +16,7 @@ _env_file = find_dotenv(usecwd=True) or str(Path(__file__).parent.parent / ".env
 load_dotenv(_env_file, override=True)
 
 from document_parser import parse_document  # noqa: E402
-from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis, generate_cross_doc_insights  # noqa: E402
+from graph_extractor import extract_graphs, generate_object_model, generate_workflows, query_graph, generate_blueprint, generate_pulse_ai, run_conformance_analysis, generate_cross_doc_insights, generate_pm_optimise  # noqa: E402
 import db  # noqa: E402
 import seed_db  # noqa: E402
 import demo_cache  # noqa: E402  # disk-persisted cache for repeat demos
@@ -891,6 +891,489 @@ def _build_live_nlq_context() -> str:
             bits.append(f"{s['role_mismatches']} done by wrong role (SOP says {s['expected_role']})")
         lines.append(f"- {s['step_name']} (SLA {s['sla_hours']}h): " + ", ".join(bits) + ".")
     return "\n".join(lines)
+
+
+# ── Process Mining (Celonis-style) ──────────────────────────────────────────
+# Pure SQL aggregation over process_steps + loan_applications + step_executions.
+# No Claude calls; recomputes on every fetch (data is small — 71 rows).
+
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+
+# AI-recommendation copy keyed by step_name. v1: static lookup; future: Haiku.
+_PM_AI_RECOS: dict[str, str] = {
+    "Underwriting Review":
+        "Auto-route applications under $100k to Junior Underwriter — projected −1.4d median TAT.",
+    "KYC Verification":
+        "Pre-fetch sanctions/PEP results during application submission to cut wait by ~30%.",
+    "Credit Check":
+        "Cache credit-bureau pulls for 24h to avoid redundant queries on repeat applicants.",
+    "Approval Decision":
+        "Enforce role-based routing — only Credit Officers can decision; eliminates wrong-role events.",
+    "Disbursement":
+        "Batch core-banking transfers hourly to reduce per-application processing overhead.",
+    "Post-Disbursement Audit":
+        "Move from sample-based to risk-based audit — focus on >$1M loans.",
+    "Application Submission":
+        "Pre-validate required fields client-side to reduce return-for-correction loops.",
+}
+
+
+def _compute_process_mining(filters: dict | None = None) -> dict:
+    """Aggregate process_steps + loan_applications + step_executions into a
+    Celonis-style process-mining dataset: KPIs, activities (nodes), edges,
+    variants, and conformance.
+
+    Optional filters narrow the set of loan_applications considered:
+        loan_types: list[str]  — keep apps whose loan_type is in this list
+        statuses:   list[str]  — keep apps whose status   is in this list
+
+    Returns a dict ready for JSON serialization. Empty dict if DB unseeded.
+    """
+    import statistics
+
+    filters = filters or {}
+    loan_types_filter = set(filters.get("loan_types") or [])
+    statuses_filter   = set(filters.get("statuses") or [])
+
+    if not (db.has_table("process_steps") and db.row_count("process_steps") > 0):
+        return {"unseeded": True}
+
+    try:
+        cfg_rows = db.query("SELECT * FROM process_steps ORDER BY rowid")
+        apps     = db.query("SELECT * FROM loan_applications")
+        execs    = db.query("SELECT * FROM step_executions")
+    except Exception as e:
+        return {"error": f"Demo DB query failed: {e}"}
+
+    if not cfg_rows or not apps:
+        return {"unseeded": True}
+
+    # Capture full universe before filtering — used for the available-filters
+    # surface in the response and for the "n of total" indicator.
+    all_loan_types: list[str] = sorted({str(a["loan_type"]) for a in apps if a.get("loan_type")})
+    all_statuses:   list[str] = sorted({str(a["status"])    for a in apps if a.get("status")})
+    total_unfiltered = len(apps)
+
+    # Apply filters.
+    if loan_types_filter:
+        apps = [a for a in apps if a.get("loan_type") in loan_types_filter]
+    if statuses_filter:
+        apps = [a for a in apps if a.get("status") in statuses_filter]
+
+    # Restrict executions to filtered apps so all downstream aggregates are coherent.
+    if loan_types_filter or statuses_filter:
+        kept_ids = {a["id"] for a in apps}
+        execs = [e for e in execs if e.get("application_id") in kept_ids]
+
+    if not apps:
+        return {
+            "filtered":          True,
+            "filters_applied":   {"loan_types": sorted(loan_types_filter), "statuses": sorted(statuses_filter)},
+            "filter_options":    {"loan_types": all_loan_types, "statuses": all_statuses},
+            "total_unfiltered":  total_unfiltered,
+            "kpis":         {"total_cases": 0, "total_activities": 0, "total_step_executions": 0,
+                              "completed_cases": 0, "in_progress_cases": 0, "declined_cases": 0,
+                              "median_tat_days": None, "breach_rate_pct": 0.0,
+                              "role_mismatch_rate_pct": 0.0, "role_mismatch_total": 0,
+                              "conformant_cases": 0, "deviating_cases": 0,
+                              "bottleneck_step": None, "total_disbursed_usd": 0.0,
+                              "avg_loan_usd": 0.0, "fitness": 0.0},
+            "activities":   [], "edges": [], "variants": [],
+            "conformance":  {"fitness": 0.0, "conformant_cases": 0, "deviating_cases": 0,
+                              "deviation_patterns": [], "deviating_cases_top": []},
+            "ai_recommendations": _PM_AI_RECOS,
+        }
+
+    canonical_order = [r["step_name"] for r in cfg_rows]
+    step_index      = {sn: i for i, sn in enumerate(canonical_order)}
+    cfg_by_name     = {r["step_name"]: r for r in cfg_rows}
+
+    # ── group executions by application, sorted by started_at ──
+    by_app: dict[str, list] = {}
+    for e in execs:
+        by_app.setdefault(e.get("application_id"), []).append(e)
+    for k in by_app:
+        by_app[k].sort(key=lambda e: e.get("started_at") or "")
+
+    # ── KPIs ────────────────────────────────────────────────────
+    status_counts: dict[str, int] = {}
+    for a in apps:
+        status_counts[a.get("status", "?")] = status_counts.get(a.get("status", "?"), 0) + 1
+
+    cycle_days = []
+    for a in apps:
+        if a.get("status") != "disbursed":
+            continue
+        app_execs = by_app.get(a["id"], [])
+        if not app_execs:
+            continue
+        s_dt = _parse_iso(app_execs[0].get("started_at"))
+        completed_ts = [_parse_iso(e.get("completed_at")) for e in app_execs if e.get("completed_at")]
+        completed_ts = [t for t in completed_ts if t]
+        if s_dt and completed_ts:
+            cycle_days.append((max(completed_ts) - s_dt).total_seconds() / 86400)
+    median_tat = round(statistics.median(cycle_days), 1) if cycle_days else None
+
+    breached_n = sum(1 for e in execs if e.get("status") == "breached")
+    finished_n = sum(1 for e in execs if e.get("status") in ("completed", "breached"))
+    breach_rate_pct = round(breached_n / finished_n * 100, 1) if finished_n else 0.0
+
+    # ── Activities ──────────────────────────────────────────────
+    activities = []
+    for i, cfg in enumerate(cfg_rows):
+        sn = cfg["step_name"]
+        step_execs = [e for e in execs if e.get("step_name") == sn]
+        case_count = len({e.get("application_id") for e in step_execs})
+        breach_count = sum(1 for e in step_execs if e.get("status") == "breached")
+        role_mismatch = sum(
+            1 for e in step_execs
+            if e.get("actual_role") and e.get("actual_role") != cfg.get("expected_role")
+        )
+
+        dwell_hours = []
+        for e in step_execs:
+            s_dt = _parse_iso(e.get("started_at"))
+            c_dt = _parse_iso(e.get("completed_at"))
+            if s_dt and c_dt:
+                dwell_hours.append((c_dt - s_dt).total_seconds() / 3600)
+        median_dwell = round(statistics.median(dwell_hours), 1) if dwell_hours else None
+
+        sla = cfg.get("sla_hours") or 0
+        # Bottleneck flag deferred — set after we've seen all activities so we
+        # can pick the single most problematic step rather than every step
+        # whose dwell happens to exceed SLA.
+        is_exception  = breach_count >= 2 or role_mismatch >= 1
+
+        activities.append({
+            "id":               sn,
+            "label":            sn,
+            "expected_role":    cfg.get("expected_role"),
+            "expected_system":  cfg.get("expected_system"),
+            "sla_hours":        sla,
+            "case_count":       case_count,
+            "exec_count":       len(step_execs),
+            "breach_count":     breach_count,
+            "role_mismatch_count": role_mismatch,
+            "median_dwell_hours": median_dwell,
+            "dwell_samples":    [round(d, 2) for d in dwell_hours],
+            "is_bottleneck":    False,
+            "is_exception":     is_exception,
+            "x":                80 + i * 200,
+            "y":                60,
+            "width":            168,
+            "height":           64,
+        })
+
+    # Pick the single most-problematic activity as the bottleneck:
+    # priority = breach_count, role_mismatch_count, then dwell/SLA ratio.
+    def _pm_problem_score(a: dict) -> tuple:
+        ratio = ((a["median_dwell_hours"] or 0) / a["sla_hours"]) if a["sla_hours"] else 0
+        return (a["breach_count"], a["role_mismatch_count"], ratio)
+    if activities:
+        worst = max(activities, key=_pm_problem_score)
+        if _pm_problem_score(worst) > (0, 0, 0.95):
+            worst["is_bottleneck"] = True
+
+    # ── Edges (transitions) ─────────────────────────────────────
+    edge_acc: dict[tuple, dict] = {}
+    for app_id, app_execs in by_app.items():
+        for a, b in zip(app_execs, app_execs[1:]):
+            sa = a.get("step_name"); sb = b.get("step_name")
+            if not sa or not sb:
+                continue
+            key = (sa, sb)
+            entry = edge_acc.setdefault(key, {"cases": 0, "transitions": []})
+            entry["cases"] += 1
+            t1 = _parse_iso(a.get("completed_at")) or _parse_iso(a.get("started_at"))
+            t2 = _parse_iso(b.get("started_at"))
+            if t1 and t2:
+                # Clamp to ≥0 — seed dates can overlap (parallel-running steps);
+                # negative transition time is nonsensical to surface in UI.
+                entry["transitions"].append(max(0.0, (t2 - t1).total_seconds() / 3600))
+
+    edges = []
+    for (sa, sb), entry in edge_acc.items():
+        med = round(statistics.median(entry["transitions"]), 1) if entry["transitions"] else None
+        ia = step_index.get(sa, -1)
+        ib = step_index.get(sb, -1)
+        is_rework = (sa == sb) or (ia >= 0 and ib >= 0 and ib < ia)
+        is_slow   = bool(med and med > 24)
+        edges.append({
+            "from": sa, "to": sb,
+            "cases": entry["cases"],
+            "median_transition_hours": med,
+            "is_slow":   is_slow,
+            "is_rework": is_rework,
+        })
+    edges.sort(key=lambda e: -e["cases"])
+
+    # ── Variants (unique step sequences per app) ────────────────
+    seq_to_apps: dict[tuple, list] = {}
+    for a in apps:
+        app_execs = by_app.get(a["id"], [])
+        seen = []
+        seq = []
+        for e in app_execs:
+            sn = e.get("step_name")
+            if sn and sn not in seen:
+                seen.append(sn)
+                seq.append(sn)
+        seq_to_apps.setdefault(tuple(seq), []).append(a)
+
+    total_apps = len(apps)
+    variants = []
+    for seq, app_list in seq_to_apps.items():
+        # Sequence is conformant if it's a prefix of canonical order.
+        is_canonical_prefix = list(seq) == canonical_order[:len(seq)]
+        # Per-case conformance: all executions completed/in-progress, no role mismatch, no breach, no skip
+        conformant_count = 0
+        for a in app_list:
+            ok = True
+            for e in by_app.get(a["id"], []):
+                if e.get("status") in ("breached", "skipped"):
+                    ok = False; break
+                cfg = cfg_by_name.get(e.get("step_name") or "")
+                if cfg and e.get("actual_role") and e.get("actual_role") != cfg.get("expected_role"):
+                    ok = False; break
+            if ok and is_canonical_prefix:
+                conformant_count += 1
+        median_tat_v = None
+        durs = []
+        for a in app_list:
+            ee = by_app.get(a["id"], [])
+            if not ee: continue
+            s_dt = _parse_iso(ee[0].get("started_at"))
+            ct = [_parse_iso(e.get("completed_at")) for e in ee if e.get("completed_at")]
+            ct = [t for t in ct if t]
+            if s_dt and ct:
+                durs.append((max(ct) - s_dt).total_seconds() / 86400)
+        if durs:
+            median_tat_v = round(statistics.median(durs), 1)
+
+        variants.append({
+            "steps":            list(seq),
+            "case_count":       len(app_list),
+            "frequency_pct":    round(len(app_list) / total_apps * 100, 1) if total_apps else 0.0,
+            "median_tat_days":  median_tat_v,
+            "is_conformant":    is_canonical_prefix and conformant_count == len(app_list),
+            "conformant_count": conformant_count,
+            "deviating_count":  len(app_list) - conformant_count,
+            "deviation_note":   None if is_canonical_prefix else "Non-canonical sequence",
+            "case_ids":         [a["id"] for a in app_list],
+            "applicants":       [a.get("applicant_name") for a in app_list],
+        })
+    variants.sort(key=lambda v: -v["case_count"])
+    for i, v in enumerate(variants):
+        v["id"]   = f"v{i+1}"
+        v["rank"] = i + 1
+
+    # ── Conformance: deviation patterns + top deviating cases ───
+    pattern_acc: dict[tuple, int] = {}  # (label, severity) -> count
+    case_devs: dict[str, list] = {}     # app_id -> list of (severity, label)
+
+    for e in execs:
+        sn = e.get("step_name") or ""
+        cfg = cfg_by_name.get(sn) or {}
+        app_id = e.get("application_id") or ""
+        if not app_id:
+            continue
+        # Wrong-role
+        ar = e.get("actual_role")
+        if ar and cfg.get("expected_role") and ar != cfg["expected_role"]:
+            label = f"Wrong-role {sn}"
+            pattern_acc[(label, "high")] = pattern_acc.get((label, "high"), 0) + 1
+            case_devs.setdefault(app_id, []).append(("high", label))
+        # Skipped
+        if e.get("status") == "skipped":
+            sev = "critical" if sn in ("Underwriting Review", "KYC Verification", "Credit Check") else "high"
+            label = f"Skipped {sn}"
+            pattern_acc[(label, sev)] = pattern_acc.get((label, sev), 0) + 1
+            case_devs.setdefault(app_id, []).append((sev, label))
+        # SLA breach
+        if e.get("status") == "breached":
+            label = f"SLA-breached {sn}"
+            pattern_acc[(label, "medium")] = pattern_acc.get((label, "medium"), 0) + 1
+            case_devs.setdefault(app_id, []).append(("medium", label))
+
+    # Detect SOP-skipped activities (canonical step not executed at all
+    # before the app's furthest-progressed step) and out-of-sequence steps
+    # (executed in a different order than the SOP defines).
+    for a in apps:
+        app_id = a["id"]
+        app_execs = by_app.get(app_id, [])
+        if not app_execs:
+            continue
+        # Set of executed step names + ordered seq by started_at
+        executed_set = set()
+        ordered_seq = []
+        for e in app_execs:
+            sn = e.get("step_name")
+            if sn and sn not in executed_set:
+                executed_set.add(sn)
+                ordered_seq.append(sn)
+        # Furthest canonical index this app has reached
+        canonical_indices = [step_index[sn] for sn in executed_set if sn in step_index]
+        if not canonical_indices:
+            continue
+        max_idx = max(canonical_indices)
+        # Skipped: any canonical step between 0..max_idx not in executed_set
+        for i in range(max_idx):
+            cname = canonical_order[i]
+            if cname not in executed_set:
+                sev = "critical" if cname in ("Underwriting Review", "KYC Verification", "Credit Check") else "high"
+                label = f"Skipped {cname}"
+                pattern_acc[(label, sev)] = pattern_acc.get((label, sev), 0) + 1
+                case_devs.setdefault(app_id, []).append((sev, label))
+        # Out-of-sequence: executed_seq differs from canonical-sorted-by-index
+        executed_canonical_sorted = sorted(
+            (sn for sn in ordered_seq if sn in step_index),
+            key=lambda sn: step_index[sn],
+        )
+        executed_in_canonical_order = [sn for sn in ordered_seq if sn in step_index]
+        if executed_in_canonical_order != executed_canonical_sorted:
+            label = "Out-of-sequence steps"
+            pattern_acc[(label, "high")] = pattern_acc.get((label, "high"), 0) + 1
+            case_devs.setdefault(app_id, []).append(("high", label))
+
+    deviation_patterns = sorted(
+        [{"label": lbl, "severity": sev, "case_count": n}
+         for (lbl, sev), n in pattern_acc.items()],
+        key=lambda d: (_SEVERITY_ORDER.get(d["severity"], 9), -d["case_count"]),
+    )
+
+    # Top deviating cases — pick worst severity per case, sort by severity then start desc
+    apps_by_id = {a["id"]: a for a in apps}
+    deviating_cases_top = []
+    for app_id, devs in case_devs.items():
+        if not devs:
+            continue
+        devs.sort(key=lambda x: _SEVERITY_ORDER.get(x[0], 9))
+        worst_sev, worst_label = devs[0]
+        a = apps_by_id.get(app_id) or {}
+        first_exec = (by_app.get(app_id) or [{}])[0]
+        s_dt = _parse_iso(first_exec.get("started_at"))
+        ct = [_parse_iso(e.get("completed_at")) for e in by_app.get(app_id, []) if e.get("completed_at")]
+        ct = [t for t in ct if t]
+        tat_days = round((max(ct) - s_dt).total_seconds() / 86400, 1) if (s_dt and ct) else None
+        deviating_cases_top.append({
+            "case_id":    app_id,
+            "applicant":  a.get("applicant_name"),
+            "loan_type":  a.get("loan_type"),
+            "amount_usd": a.get("loan_amount_usd"),
+            "deviation":  worst_label,
+            "started_at": (first_exec.get("started_at") or "")[:10],
+            "tat_days":   tat_days,
+            "severity":   worst_sev,
+            "all_deviations": [d[1] for d in devs],
+        })
+    deviating_cases_top.sort(
+        key=lambda c: (_SEVERITY_ORDER.get(c["severity"], 9), -(c["tat_days"] or 0))
+    )
+
+    deviating_cases = len(case_devs)
+    conformant_cases = total_apps - deviating_cases
+    fitness = round(conformant_cases / total_apps, 2) if total_apps else 0.0
+
+    # Loan-amount aggregates (from disbursed apps only — declined/in-progress
+    # don't reflect actual portfolio value).
+    disbursed_amounts = [
+        float(a.get("loan_amount_usd") or 0)
+        for a in apps if a.get("status") == "disbursed"
+    ]
+    total_disbursed_usd = round(sum(disbursed_amounts), 2)
+    avg_loan_usd = round(sum(disbursed_amounts) / len(disbursed_amounts), 2) if disbursed_amounts else 0.0
+
+    # Role-mismatch rate across all completed/breached executions.
+    role_mismatch_total = sum(a["role_mismatch_count"] for a in activities)
+    role_mismatch_rate_pct = (
+        round(role_mismatch_total / finished_n * 100, 1) if finished_n else 0.0
+    )
+
+    return {
+        "kpis": {
+            "total_cases":           total_apps,
+            "completed_cases":       status_counts.get("disbursed", 0),
+            "in_progress_cases":     status_counts.get("pending", 0) + status_counts.get("underwriting", 0),
+            "declined_cases":        status_counts.get("declined", 0),
+            "median_tat_days":       median_tat,
+            "breach_rate_pct":       breach_rate_pct,
+            "role_mismatch_rate_pct": role_mismatch_rate_pct,
+            "role_mismatch_total":   role_mismatch_total,
+            "total_step_executions": len(execs),
+            "total_activities":      len(activities),
+            "conformant_cases":      conformant_cases,
+            "deviating_cases":       deviating_cases,
+            "bottleneck_step":       next((a["id"] for a in activities if a["is_bottleneck"]), None),
+            "total_disbursed_usd":   total_disbursed_usd,
+            "avg_loan_usd":          avg_loan_usd,
+            "fitness":               fitness,
+        },
+        "activities": activities,
+        "edges":      edges,
+        "variants":   variants,
+        "conformance": {
+            "fitness":            fitness,
+            "conformant_cases":   conformant_cases,
+            "deviating_cases":    deviating_cases,
+            "deviation_patterns": deviation_patterns,
+            "deviating_cases_top": deviating_cases_top[:10],
+        },
+        "ai_recommendations": _PM_AI_RECOS,
+        "filter_options":     {"loan_types": all_loan_types, "statuses": all_statuses},
+        "filters_applied":    {"loan_types": sorted(loan_types_filter), "statuses": sorted(statuses_filter)},
+        "total_unfiltered":   total_unfiltered,
+        "filtered":           bool(loan_types_filter or statuses_filter),
+    }
+
+
+@app.get("/api/process-mining/{graph_id}")
+async def process_mining_endpoint(
+    graph_id: str,
+    loan_types: str | None = None,
+    statuses:   str | None = None,
+):
+    """Celonis-style process mining over the seeded SQLite operational data.
+
+    Requires a graph_id to anchor the call (the demo data is global, but we
+    gate on a graph existing so the customer has uploaded a doc first).
+
+    Optional comma-separated filter params:
+      ?loan_types=Commercial,Retail
+      ?statuses=disbursed,underwriting
+    """
+    if graph_id not in _graph_store:
+        raise HTTPException(status_code=404, detail="Graph not found")
+    filters = {
+        "loan_types": [s.strip() for s in (loan_types or "").split(",") if s.strip()],
+        "statuses":   [s.strip() for s in (statuses   or "").split(",") if s.strip()],
+    }
+    try:
+        return _compute_process_mining(filters)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Process mining failed: {e}")
+
+
+_pm_optimise_store: dict[str, dict] = {}  # graph_id -> Haiku optimise result
+
+
+@app.post("/api/process-mining/{graph_id}/optimise")
+async def process_mining_optimise(graph_id: str):
+    """Haiku-powered optimisation suggestions over the current PM snapshot."""
+    if graph_id not in _graph_store:
+        raise HTTPException(status_code=404, detail="Graph not found")
+    if graph_id in _pm_optimise_store:
+        return _pm_optimise_store[graph_id]
+    try:
+        snapshot = _compute_process_mining()
+        if snapshot.get("unseeded") or snapshot.get("error"):
+            raise HTTPException(status_code=409, detail="Process-mining data unavailable")
+        result = generate_pm_optimise(snapshot)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimise generation failed: {e}")
+    _pm_optimise_store[graph_id] = result
+    return result
 
 
 @app.post("/api/data/summary")
