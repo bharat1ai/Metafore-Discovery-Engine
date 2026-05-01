@@ -225,11 +225,13 @@ def add_s3_objectives(doc):
     section_heading(doc, "3", "Objectives")
     objectives = [
         "Extract a structured knowledge graph from any uploaded business document in under 60 seconds.",
-        "Surface workflow AS-IS and TO-BE suggestions from extracted graph data.",
-        "Automatically generate a BRD §4-compliant domain object model (Pydantic + JSON Schema).",
+        "Mine the live operational data set against the extracted SOP via a Celonis-style Process Mining surface — fitness, bottleneck, deviation patterns, top deviating cases — with no LLM dependency on the headline view.",
+        "Generate AI optimisation suggestions (re-routing, SLA targets, role assignments) grounded in the Process Mining snapshot.",
+        "Automatically generate a BRD §4-compliant domain object model (Pydantic + JSON Schema + Entity Diagram).",
         "Calculate gap analysis and provide actionable remediation blueprints.",
-        "Score conformance between evidence documents and the source process graph.",
+        "Score Audit Check (was Conformance) between an audit document and the source process graph; disambiguated from Process Mining → Execution Conformance.",
         "Provide natural language querying over the knowledge graph.",
+        "Produce a print-ready Executive Report consolidating every feature run, with Metafore brand typography and page breaks.",
     ]
     for i, obj in enumerate(objectives, 1):
         p = doc.add_paragraph()
@@ -244,9 +246,10 @@ def add_s4_stakeholders(doc):
         ["Role", "Interest"],
         [
             ("Product Owner — Metafore Works",  "Feature prioritisation and roadmap"),
-            ("Business Analyst",                "Gap analysis, conformance, object model output"),
+            ("Business Analyst",                "Gap analysis, audit check, object model output"),
             ("Data Architect",                  "BRD §4 object model export and ERD review"),
-            ("Process Owner",                   "Workflow suggestions and pulse recommendations"),
+            ("Process Owner",                   "Process Mining bottleneck / deviations and AI Optimisation suggestions"),
+            ("Compliance / Audit",              "Audit Check (doc-vs-doc) and Execution Conformance (data-vs-doc)"),
             ("IT / Infrastructure",             "Deployment and API key management"),
         ],
         col_widths=[2.5, 4.0]
@@ -260,13 +263,15 @@ def add_s5_scope(doc):
         "Document upload: PDF, DOCX, TXT",
         "AI-driven knowledge graph extraction (nodes and edges)",
         "Interactive graph visualisation via vis-network",
-        "Workflow generation (AS-IS and TO-BE)",
+        "Process Mining (Workflows tab) — Process Map, Variants, Execution Conformance, Filter Cases, AI Optimise (Haiku)",
         "Gap analysis with remediation blueprint",
-        "Pulse health recommendations",
-        "Conformance checking with evidence document",
-        "Object model generation: Pydantic v2, JSON Schema, ERD",
-        "Natural language querying over the graph",
-        "Single-user, local deployment on Windows",
+        "Pulse drawer with severity filter, Source line, Dismiss action, AI Strategic Insights",
+        "Audit Check (renamed from standalone Conformance) — document-only, doc-vs-doc via Sonnet",
+        "Object model generation: Entity Diagram (default tab) + Pydantic v2 + JSON Schema, with cache-busting Regenerate",
+        "Natural language querying over the graph (grounded in graph + live operational data)",
+        "Dashboard — full-screen, hotspots and deviating cases sourced from Process Mining",
+        "Executive Report — print-ready HTML with Metafore brand typography, page breaks per section",
+        "Single-user, local deployment on Windows / Mac",
     ]
     for item in in_scope:
         bullet(doc, item)
@@ -301,17 +306,22 @@ def add_s6_functional(doc):
         ("FR-05", "Each upload shall produce an independent graph with a unique graph_id (UUID)"),
         ("FR-06", "Document text stored in memory shall be capped at 15,000 characters"),
     ])
-    fr_table("6.2", "Workflow Generation (consolidated bundle)", [
-        ("FR-07", "System shall generate 3–5 AS-IS / TO-BE workflows from the knowledge graph in a single Sonnet call"),
-        ("FR-08", "Each workflow shall include ordered steps with responsible roles, linked systems, and per-step SLA status"),
-        ("FR-09", "Each workflow shall include a ROI estimate (annual USD value, headline basis, 4–7 banking-industry assumptions, methodology note)"),
-        ("FR-10", "Each AS-IS step shall be scored 0–10 for automation potential, with level (High/Medium/Low), reason, and suggested approach"),
-        ("FR-11", "Each workflow shall include 2–4 process variants (standard happy path + exception/escalation paths) with frequency_pct summing to 100, divergence point/reason, avg TAT, and SLA status"),
-        ("FR-12", "Each variant shall list graph node_ids it touches; clicking a variant card shall highlight those nodes in the graph"),
-        ("FR-13", "Variants whose divergence_point matches a SQLite step shall be tagged data_source='live' with the actual breach rate; otherwise data_source='estimated'"),
-        ("FR-14", "Hovering or clicking a workflow step or step chip shall highlight the corresponding node in the graph"),
-        ("FR-15", "Workflows shall be cached per graph_id (in-session) and per document hash (cross-session); no Claude call on repeated navigation"),
-        ("FR-16", "When the SQLite demo DB is seeded, each AS-IS step that name-matches a known process step shall display an 'Actual vs SOP' block with avg duration, breach rate, and role mismatches"),
+    fr_table("6.2", "Process Mining (Workflows tab)", [
+        ("FR-07", "System shall provide a Celonis-style Process Mining surface as the primary content of the Workflows tab; legacy AS-IS / TO-BE narrative cards have been retired"),
+        ("FR-08", "System shall expose GET /api/process-mining/{graph_id} returning KPIs, activities, transition edges, variants, conformance, and AI recommendations — pure SQL aggregation over process_steps + loan_applications + step_executions; no LLM calls"),
+        ("FR-09", "Process Mining shall surface a KPI strip with Cases / Median TAT / Conformance % / SLA Breaches % / Role Mismatches % / Avg Loan, each tile carrying a drilldown subtitle (e.g. '8 disbursed · 3 active · 2 declined')"),
+        ("FR-10", "Process Map shall render activities as absolutely-positioned SVG nodes; transition edges shall encode case count via stroke-width, with red for SLA-breach edges, amber dashed for rework loops"),
+        ("FR-11", "System shall identify a single bottleneck activity by composite score (breach_count, role_mismatch_count, dwell/SLA ratio) and surface it via a BOTTLENECK pill plus the Bottleneck KPI tile on the Dashboard"),
+        ("FR-12", "Variants tab shall list unique step sequences with frequency %, conformant/total counts, median TAT, swimlane detail and comparison vs Variant #1; clicking a variant updates the detail panel"),
+        ("FR-13", "Execution Conformance tab shall show a fitness score, deviation patterns ranked by severity × case count, and a top-deviating-cases table (case ID / applicant / deviation / TAT / severity)"),
+        ("FR-14", "Filter Cases popover shall accept categorical filters (loan type, status); applying re-fetches the endpoint with ?loan_types=…&statuses=… query params and recomputes all downstream KPIs / variants / conformance coherently"),
+        ("FR-15", "Negative transition times computed from overlapping seed dates shall be clamped to ≥0; skipped-step detection shall use set-membership, not sequence position; out-of-sequence execution shall be its own deviation pattern"),
+        ("FR-16", "Process Mining endpoint shall be uncached (recomputes on each fetch since it is fast SQL); the Optimise endpoint shall cache its Haiku result per graph_id"),
+    ])
+    fr_table("6.2.1", "AI Process Optimisation (Haiku)", [
+        ("FR-16a", "System shall expose POST /api/process-mining/{graph_id}/optimise that runs a Haiku call against the current PM snapshot and returns 3–5 specific re-routing / SLA / role-assignment suggestions"),
+        ("FR-16b", "Each suggestion shall include: title, rationale, expected_impact (qualitative or quantitative), effort (low/medium/high), and target_step (or empty for cross-cutting)"),
+        ("FR-16c", "Optimise modal shall surface the suggestions with effort badges (low=green, medium=amber, high=red) and target-step references; the result shall be cached per graph_id so re-clicks are instant"),
     ])
     fr_table("6.3", "Gap Analysis", [
         ("FR-17", "System shall identify gaps: missing roles, policies, and systems in the process graph"),
@@ -322,23 +332,31 @@ def add_s6_functional(doc):
     ])
     fr_table("6.4", "Pulse Recommendations", [
         ("FR-22", "System shall calculate rule-based health metrics from the knowledge graph"),
-        ("FR-23", "System shall generate AI recommendations (up to 5) using Claude Haiku"),
-        ("FR-24", "Pulse panel shall be accessible via a slide-in drawer from the sidebar"),
+        ("FR-23", "System shall generate AI Strategic Insights (up to 5) using Claude Haiku, accessible via a button at the bottom of the Pulse drawer"),
+        ("FR-24", "Pulse drawer shall slide in from a bell icon at the bottom of the sidebar"),
+        ("FR-24a", "Pulse drawer shall surface a filter tab strip at the top (All + Critical / Warning / Info — only severities present in the items, with per-tab item counts)"),
+        ("FR-24b", "Each Pulse card shall display a severity pill (CRITICAL / WARNING / INFO), a 'just now' timestamp, the title, a derived Source line (sourced from item.category — e.g. 'Pulse · Urgent'), and an action row with 'View in Graph' (filled brand pill) + 'Dismiss' (ghost pill)"),
+        ("FR-24c", "Dismiss shall be local-state only — items remain hidden until the next /api/pulse/calculate fetch; no backend persistence"),
     ])
-    fr_table("6.5", "Conformance Checking", [
-        ("FR-25", "User shall upload a secondary evidence document (audit report, review log)"),
-        ("FR-26", "System shall score each eligible node as: Confirmed / Deviated / Not Found"),
-        ("FR-27", "System shall display a conformance percentage and evidence quotes"),
-        ("FR-28", "Overlay modes shall allow filtering to confirmed, deviated, or all nodes"),
-        ("FR-29", "Event and Objective nodes shall be excluded from conformance assessment"),
-        ("FR-30", "User shall be able to run conformance against live operational data instead of an uploaded file; the system shall synthesise an evidence document from the SQLite demo DB and run analysis through the same pipeline"),
+    fr_table("6.5", "Audit Check (was Conformance Checking — renamed)", [
+        ("FR-25", "Standalone Conformance view shall be renamed Audit Check throughout the UI (sidebar nav, page title, score header, button labels, header chip) to disambiguate from Process Mining → Execution Conformance"),
+        ("FR-26", "User shall upload an audit document (audit report, review log) — Audit Check is document-only; the live-operational-data ingestion path has been retired since that question is answered by Execution Conformance under Process Mining"),
+        ("FR-27", "System shall score each eligible node as: Confirmed / Deviated / Not Found via a Sonnet call comparing the audit doc against the SOP graph"),
+        ("FR-28", "System shall display an Audit Match Rate percentage with evidence quotes per finding"),
+        ("FR-29", "Overlay modes shall allow filtering the always-visible knowledge graph to confirmed, deviated, or all nodes"),
+        ("FR-30", "Event and Objective nodes shall be excluded from audit assessment"),
+        ("FR-30a", "Audit Check shall NOT be cached on disk; same SOP+audit pair re-runs on every analyse call (so the AI moment is visibly real, not pre-cooked)"),
     ])
     fr_table("6.6", "Object Model Generation", [
         ("FR-31", "System shall generate a domain object model using BRD Authoring Standard §4"),
-        ("FR-32", "Output shall include: Pydantic v2 Python code, JSON Schema, and an ERD"),
-        ("FR-33", "Object model shall be cached per graph_id and not regenerated on repeated navigation"),
-        ("FR-34", "System shall show a loading spinner while the model is being generated"),
-        ("FR-35", "If no graph has been extracted, system shall show an empty-state prompt"),
+        ("FR-32", "Output shall include: Pydantic v2 Python code, JSON Schema, and an Entity Diagram (ERD)"),
+        ("FR-33", "Object Model tab shall default to the Entity Diagram view (was Pydantic); tab order shall be Entity Diagram → Pydantic → JSON Schema"),
+        ("FR-33a", "Topbar shall expose three action buttons — Pydantic and JSON Schema (jump-to-tab) and Regenerate (primary, brand-teal) — plus a meta line 'N ENTITIES · BRD §4'"),
+        ("FR-33b", "Regenerate shall call POST /api/generate-object-model?force=true which busts both the in-memory store and the disk cache and re-runs the Sonnet call"),
+        ("FR-34", "ERD shall lay out entity cards by foreign-key depth (column = number of inbound FK refs); cards shall be 240px-wide, absolutely positioned, with a flat brand-teal header containing a cube icon and a lowercase mono entity name"),
+        ("FR-34a", "Each ERD field row shall show a PK / FK / AUDIT pill (or none) followed by the field name and type in mono; arrows between cards shall be solid brand-teal SVG paths"),
+        ("FR-35", "Object Model shall be cached per graph_id (in-memory) and per doc_hash (on disk via demo_cache.json) — re-navigation is instant, but a customer-visible Regenerate is provided"),
+        ("FR-35a", "If no graph has been extracted, system shall show an empty-state prompt"),
     ])
     fr_table("6.7", "Natural Language Querying", [
         ("FR-36", "User shall be able to type a plain-English question about the graph"),
@@ -347,17 +365,17 @@ def add_s6_functional(doc):
         ("FR-39", "When the SQLite demo DB is seeded, the NLQ prompt shall include a compact OPERATIONAL DATA section so answers about reality (breach rates, role mismatches, cycle times) are grounded in actual data"),
     ])
     fr_table("6.8", "Dashboard", [
-        ("FR-40", "System shall provide a Dashboard view that aggregates state from existing in-memory stores with no new Claude calls"),
-        ("FR-41", "Dashboard shall display an Overall Health Score (0–100) as a weighted average of Coverage (40%), SLA Compliance (35%), and Conformance (25%); weights shall redistribute proportionally when conformance has not been run"),
-        ("FR-42", "Dashboard shall show three click-through metric cards (Coverage, SLA Compliance, Conformance) that navigate to their source tab"),
+        ("FR-40", "Dashboard shall be a full-screen view (graph canvas hidden) that aggregates state from in-memory stores plus the Process Mining snapshot — no new Claude calls"),
+        ("FR-41", "Dashboard shall display an Overall Health Score (0–100) as a weighted average of Coverage (40%), SLA Compliance (35% — derived from PM as 100 − breach_rate_pct), and Audit Conformance (25%); weights redistribute proportionally when sources are missing"),
+        ("FR-42", "Dashboard hero shall show four click-through KPI tiles: Coverage / SLA / Conformance / Bottleneck (the Bottleneck tile replaces the legacy Total ROI tile and shows the worst PM activity with breach/role-mismatch detail)"),
         ("FR-43", "Dashboard shall show a graph composition bar chart by node type"),
-        ("FR-44", "Dashboard shall show up to 5 Top Issues (gap critical/warning + SLA-breach steps) with click-through highlight + navigation"),
-        ("FR-45", "Dashboard shall show up to 4 Quick Wins ranked by ROI dollar value"),
-        ("FR-46", "Dashboard shall show the top 3 highest-scoring AS-IS steps as Automation Highlights"),
-        ("FR-47", "Dashboard shall show a Completeness Checklist for major features with click-through CTAs"),
-        ("FR-48", "When the SQLite demo DB is seeded, Dashboard shall include a Live Operational Data section with KPIs (loan applications, total value, avg cycle, step executions), a status breakdown, and top breached steps"),
+        ("FR-44", "Dashboard shall show up to 5 Top Issues drawn from gap analysis (critical/warning) and PM deviation patterns — legacy workflow-SLA-step issues are gone"),
+        ("FR-45", "Dashboard shall show up to 4 Top Hotspots — PM deviation patterns ranked by severity × case count (replaces the legacy 'Quick wins · ROI' card, which depended on the retired workflow narrative)"),
+        ("FR-46", "Dashboard shall show up to 3 Top Deviating Cases — case ID, applicant name, deviation, severity badge — with click-through to Process Mining (replaces 'Automation Highlights')"),
+        ("FR-47", "Dashboard shall show a Setup-Progress checklist: Graph extracted / Process Mining / Gap Analysis / Audit Check (was 'Workflows' / 'Conformance' — labels updated)"),
+        ("FR-48", "When the SQLite demo DB is seeded, Dashboard shall include a Live Operational Data section with KPIs (applications, total value, avg cycle, step executions), a status breakdown, and top breached steps"),
         ("FR-49", "Dashboard shall present a hero CTA empty state when no graph is loaded"),
-        ("FR-50", "Returning to the Dashboard tab shall re-render with the latest data (auto-refresh)"),
+        ("FR-50", "Dashboard shall auto re-render after Process Mining data finishes loading post-upload, so hotspots and deviating-case sections populate without requiring a navigation"),
     ])
     fr_table("6.9", "Multi-Document Upload and Cross-Document Insights", [
         ("FR-51", "System shall accept multiple documents in a single upload request"),
@@ -379,10 +397,22 @@ def add_s6_functional(doc):
     ])
     fr_table("6.11", "Executive Report", [
         ("FR-65", "System shall provide a header button 'Generate Report' that opens a self-contained, print-styled HTML page summarising every feature run for the current graph"),
-        ("FR-66", "Report shall be composed entirely from existing in-memory stores and the local SQLite DB; no new LLM calls shall be made to compose it"),
+        ("FR-66", "Report shall be composed entirely from existing in-memory stores and the SQLite DB; no new LLM calls shall be made to compose it (the AI Optimisation section, when present, is sourced from the cached optimise result)"),
         ("FR-67", "Report sections shall render conditionally — features that have not been run shall be omitted"),
-        ("FR-68", "Report shall include: hero, source documents, executive summary, top issues, cross-document insights (when applicable), workflow opportunities with total ROI roll-up, gap analysis, conformance results, live operational data, footer"),
+        ("FR-68", "Report shall include the following sections in order: Cover (hero), Source Documents, Executive Summary, Top Issues, Cross-Document Insights (when applicable), Process Mining (KPIs + bottleneck + deviation patterns + top deviating cases — replaces legacy AS-IS/TO-BE Workflow Automation Opportunities), Gap Analysis + Blueprint, Audit Check (renamed from Conformance Results), Object Model (entity table), AI Optimisation Suggestions (when run), Footer"),
+        ("FR-68a", "Report shall NOT include a standalone Live Operational Data section — that data is subsumed by Process Mining's KPI strip and bottleneck detail"),
         ("FR-69", "Report HTML shall include a print stylesheet (page-break rules, color preservation, hidden action bar) so the user can save to PDF via the browser's native Print dialog"),
+        ("FR-69a", "Report typography shall use Inter for body text and IBM Plex Mono for numerics with letter-spacing -0.02em; section labels shall be 10px / 0.10em / brand-teal mono — matching the rest of the application's design tokens"),
+        ("FR-69b", "Report cover (hero) shall use the wordmark 'Metafore · Discovery' (not legacy 'Metafore Works · Discovery Engine'); cover shall be on its own page in print via page-break-after"),
+        ("FR-69c", "Print rules shall include @page { margin: 16mm 14mm } and page-break-before: always on each major section so each surface starts on its own page; even-row table backgrounds shall turn transparent in print"),
+    ])
+    fr_table("6.12", "Cache Behaviour & Demo Authenticity", [
+        ("FR-70", "System shall maintain a disk cache (data/demo_cache.json) keyed by SHA-256 doc_hash for selected features: workflows, object_model, blueprint, pulse_ai, cross_doc"),
+        ("FR-71", "demo_cache shall expose put / get / invalidate / stats functions; the invalidate helper shall be used by Object Model Regenerate (FR-33b)"),
+        ("FR-72", "Graph extraction shall NOT be cached — each /api/upload re-runs the Sonnet call so the headline AI moment is visibly real on every demo replay"),
+        ("FR-73", "Audit Check shall NOT be cached — each /conformance/analyse re-runs Sonnet so re-uploading the same audit document produces a visible AI moment"),
+        ("FR-74", "Process Mining and Gap Analysis are pure SQL / rule-based — no LLM, no cache; recomputed on each fetch"),
+        ("FR-75", "Object Model and Optimise shall remain cached (downstream of the headline extraction; navigation, not fresh-upload events)"),
     ])
 
 
