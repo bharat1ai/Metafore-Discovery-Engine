@@ -167,6 +167,15 @@
             <div class="section-label">Node Types</div>
             <ul class="legend-list" id="legend-list"></ul>
           </div>
+
+          <!-- Cross-document insights — only shown when 2+ source documents -->
+          <div id="cross-doc-insights" class="cross-doc-insights" hidden>
+            <div class="cross-doc-header">
+              <span class="cross-doc-title">Cross-Document Insights</span>
+              <span class="cross-doc-status" id="cross-doc-status">Loading…</span>
+            </div>
+            <ul class="cross-doc-list" id="cross-doc-list"></ul>
+          </div>
         </div>
 
         <!-- Workflows view -->
@@ -396,14 +405,6 @@
         <div id="spinner" class="spinner hidden">
           <div class="spinner-ring"></div>
           <p class="spinner-label">Extracting knowledge graph…</p>
-        </div>
-
-        <div id="cross-doc-insights" class="cross-doc-insights" hidden>
-          <div class="cross-doc-header">
-            <span class="cross-doc-title">Cross-Document Insights</span>
-            <span class="cross-doc-status" id="cross-doc-status">Loading…</span>
-          </div>
-          <ul class="cross-doc-list" id="cross-doc-list"></ul>
         </div>
 
         <div id="graph-source-chips" class="graph-source-chips" hidden>
