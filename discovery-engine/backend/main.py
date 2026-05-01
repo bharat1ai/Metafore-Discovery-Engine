@@ -138,80 +138,38 @@ async def executive_report(graph_id: str) -> HTMLResponse:
         )
         return HTMLResponse(content=html, status_code=404)
 
-    workflows  = _workflow_store.get(graph_id)
     gap        = _gap_store.get(graph_id)
     blueprint  = _blueprint_store.get(graph_id)
     sources    = _doc_sources_store.get(graph_id)
     cross_doc  = _cross_doc_store.get(graph_id)
+    object_model = _object_model_store.get(graph_id)
+    optimise   = _pm_optimise_store.get(graph_id)
 
     # Latest conformance result for this graph (if any)
     eid = _conformance_latest.get(graph_id)
     conformance = _conformance_store.get(eid) if eid else None
 
-    # Live operational data (best-effort — empty if SQLite unseeded)
-    live_summary = None
-    live_steps   = None
+    # Process Mining data — pure SQL aggregation over the seeded SQLite DB.
+    # Same call the /api/process-mining/{graph_id} endpoint uses.
+    pm = None
     try:
-        if db.has_table("process_steps") and db.row_count("process_steps") > 0:
-            apps  = db.query("SELECT * FROM loan_applications")
-            execs = db.query("SELECT * FROM step_executions")
-            if apps:
-                # Reuse the same aggregation as /api/data/summary, kept inline
-                # to avoid coupling to that endpoint's response shape.
-                status_counts: dict[str, int] = {}
-                total_amount = 0.0
-                for a in apps:
-                    status_counts[a.get("status", "?")] = status_counts.get(a.get("status", "?"), 0) + 1
-                    try:
-                        total_amount += float(a.get("loan_amount_usd") or 0)
-                    except (TypeError, ValueError):
-                        pass
-                breach_counts: dict[str, int] = {}
-                for e in execs:
-                    if e.get("status") == "breached":
-                        sn = e.get("step_name", "")
-                        breach_counts[sn] = breach_counts.get(sn, 0) + 1
-                top_breaches = sorted(breach_counts.items(), key=lambda kv: -kv[1])[:5]
-                live_summary = {
-                    "total_applications":    len(apps),
-                    "total_amount_usd":      round(total_amount, 2),
-                    "status_breakdown":      status_counts,
-                    "avg_cycle_time_hours":  None,
-                    "step_executions_total": len(execs),
-                    "top_breached_steps":    [{"step_name": k, "breach_count": v} for k, v in top_breaches],
-                }
-
-                # Per-step expected-vs-actual snapshot for the role-mismatch list
-                cfg_rows = db.query("SELECT * FROM process_steps")
-                live_steps = []
-                for cfg in cfg_rows:
-                    step_execs = [e for e in execs if e.get("step_name") == cfg.get("step_name")]
-                    if not step_execs:
-                        continue
-                    role_mismatch = sum(
-                        1 for e in step_execs
-                        if e.get("actual_role") and e.get("actual_role") != cfg.get("expected_role")
-                    )
-                    live_steps.append({
-                        "step_name":           cfg.get("step_name"),
-                        "expected_role":       cfg.get("expected_role"),
-                        "role_mismatch_count": role_mismatch,
-                    })
+        snapshot = _compute_process_mining()
+        if not snapshot.get("unseeded") and not snapshot.get("error"):
+            pm = snapshot
     except Exception:
-        live_summary = None
-        live_steps   = None
+        pm = None
 
     html = report_builder.render_report(
         graph_id,
         graph=graph,
-        workflows=workflows,
+        pm=pm,
         gap=gap,
         blueprint=blueprint,
         conformance=conformance,
         cross_doc=cross_doc,
         sources=sources,
-        live_summary=live_summary,
-        live_steps=live_steps,
+        object_model=object_model,
+        optimise=optimise,
     )
     return HTMLResponse(content=html)
 
@@ -325,9 +283,16 @@ async def get_workflows(graph_id: str):
 
 
 @app.post("/api/generate-object-model")
-async def object_model_endpoint(payload: GraphPayload):
+async def object_model_endpoint(payload: GraphPayload, force: bool = False):
     """Generate Pydantic models and JSON Schema from an extracted knowledge graph.
-    Cached by graph_id (same session) and by doc_hash (cross-session, on disk)."""
+    Cached by graph_id (same session) and by doc_hash (cross-session, on disk).
+    Pass ?force=true to bust both caches and re-run the Sonnet call."""
+    if force and payload.graph_id:
+        _object_model_store.pop(payload.graph_id, None)
+        doc_hash = _hash_store.get(payload.graph_id)
+        if doc_hash:
+            demo_cache.invalidate(doc_hash, "object_model")
+
     if payload.graph_id and payload.graph_id in _object_model_store:
         return _object_model_store[payload.graph_id]
 

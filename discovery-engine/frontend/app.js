@@ -314,7 +314,10 @@ const nlqSubmit        = document.getElementById('nlq-submit');
 const nlqCloseBtn      = document.getElementById('nlq-close-btn');
 
 /* ── Panel view switcher ── */
-const PANEL_RATIOS = { dashboard: 50, graph: 35, workflows: 100, gap: 50, conformance: 50, 'object-model': 55 };
+const PANEL_RATIOS = { dashboard: 100, graph: 35, workflows: 100, gap: 100, conformance: 50, 'object-model': 100 };
+
+// Views that take the full viewport — graph canvas is hidden on these.
+const FULL_SCREEN_VIEWS = new Set(['workflows', 'gap', 'dashboard', 'object-model']);
 
 function switchView(view) {
   document.getElementById('dashboard-panel').hidden       = (view !== 'dashboard');
@@ -328,9 +331,9 @@ function switchView(view) {
   const inspector = document.getElementById('detail-panel');
   if (inspector) inspector.hidden = (view !== 'graph');
 
-  // Workflows tab takes full screen — hide the always-visible graph canvas there.
+  // Full-screen views hide the always-visible graph canvas.
   const graphArea = document.querySelector('.graph-area');
-  if (graphArea) graphArea.hidden = (view === 'workflows');
+  if (graphArea) graphArea.hidden = FULL_SCREEN_VIEWS.has(view);
 
   const pct = PANEL_RATIOS[view] ?? 35;
   const panel = document.querySelector('.upload-panel');
@@ -484,7 +487,6 @@ async function extractGraph() {
     btnGapAnalyse.disabled       = false;
     btnGapAnalyseEmpty.disabled  = false;
     document.getElementById('btn-pulse').disabled = false;
-    if (btnConfLiveData) btnConfLiveData.disabled = false;
     const _btnReport = document.getElementById('btn-generate-report');
     if (_btnReport) _btnReport.disabled = false;
     fetchPulse();
@@ -757,12 +759,13 @@ function _omSetState(state) {
   omBody.hidden    = state !== 'ready';
 }
 
-async function generateObjectModel() {
+async function generateObjectModel({ force = false } = {}) {
   if (!currentGraph) return;
   btnObjectModel.disabled = true;
   _omSetState('loading');
   try {
-    const res = await fetch(`${API_BASE}/api/generate-object-model`, {
+    const url = `${API_BASE}/api/generate-object-model${force ? '?force=true' : ''}`;
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodes: currentGraph.nodes, edges: currentGraph.edges, graph_id: currentGraphId }),
@@ -780,6 +783,16 @@ async function generateObjectModel() {
   }
 }
 
+/* OM topbar action buttons (Jump-to-Pydantic / Jump-to-JSON-Schema / Regenerate). */
+const _btnOmJumpPydantic = document.getElementById('btn-om-jump-pydantic');
+const _btnOmJumpSchema   = document.getElementById('btn-om-jump-schema');
+const _btnOmRegenerate   = document.getElementById('btn-om-regenerate');
+if (_btnOmJumpPydantic) _btnOmJumpPydantic.addEventListener('click', () => activateTab('pydantic'));
+if (_btnOmJumpSchema)   _btnOmJumpSchema.addEventListener('click',   () => activateTab('schema'));
+if (_btnOmRegenerate) {
+  _btnOmRegenerate.addEventListener('click', () => generateObjectModel({ force: true }));
+}
+
 document.getElementById('nav-object-model').addEventListener('click', () => {
   setNavActive('nav-object-model');
   switchView('object-model');
@@ -793,7 +806,17 @@ function showObjectModel(result) {
   pydanticCode.textContent = result.pydantic_code || '';
   schemaCode.textContent   = JSON.stringify(result.json_schema, null, 2);
   _renderErdEntities(result.json_schema);
-  activateTab('pydantic');
+
+  // Surface a topbar meta line ("4 ENTITIES · BRD §4") and reveal action buttons.
+  const entityCount = Array.isArray(result.json_schema?.entities)
+    ? result.json_schema.entities.length
+    : Object.keys(result.json_schema?.$defs || result.json_schema?.definitions || {}).length;
+  const omMeta = document.getElementById('om-meta');
+  if (omMeta) omMeta.textContent = `${entityCount} ENTITIES · BRD §4`;
+  const omActions = document.getElementById('om-topbar-actions');
+  if (omActions) omActions.hidden = false;
+
+  activateTab('diagram');
   _omSetState('ready');
 }
 
@@ -813,6 +836,48 @@ function activateTab(name) {
 
 /* ── ERD Diagram ── */
 let _erdRelationships = [];
+
+/* Inline icon for the entity card header (cube/box). */
+const _ERD_HEADER_ICON = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`;
+
+/* Compute a layered (column,row) position for each entity based on FK depth.
+   Entities with no inbound FK → col 0. Each inbound FK adds depth. */
+function _erdComputeLayout(entityNames, relationships) {
+  const incomingFrom = {};                // entity → [parents]
+  entityNames.forEach(n => { incomingFrom[n] = []; });
+  relationships.forEach(r => {
+    if (incomingFrom[r.to] !== undefined && r.from !== r.to) {
+      incomingFrom[r.to].push(r.from);
+    }
+  });
+  const col = {};
+  const _depth = (n, seen = new Set()) => {
+    if (col[n] !== undefined) return col[n];
+    if (seen.has(n)) return 0; // cycle guard
+    seen.add(n);
+    const parents = incomingFrom[n];
+    col[n] = parents.length === 0 ? 0 : 1 + Math.max(...parents.map(p => _depth(p, seen)));
+    return col[n];
+  };
+  entityNames.forEach(_depth);
+
+  // Group by column, then assign row within column.
+  const byCol = {};
+  entityNames.forEach(n => {
+    (byCol[col[n]] = byCol[col[n]] || []).push(n);
+  });
+  const COL_W  = 280;  // x stride per column
+  const ROW_H  = 240;  // y stride per row within a column
+  const PAD_X  = 40;
+  const PAD_Y  = 40;
+  const positions = {};
+  Object.entries(byCol).forEach(([c, names]) => {
+    names.forEach((n, i) => {
+      positions[n] = { left: PAD_X + Number(c) * COL_W, top: PAD_Y + i * ROW_H };
+    });
+  });
+  return positions;
+}
 
 function _renderErdEntities(jsonSchema) {
   erdEntities.innerHTML = '';
@@ -835,6 +900,8 @@ function _renderErdEntities(jsonSchema) {
       }
     });
 
+    const positions = _erdComputeLayout(entities.map(e => e.name), _erdRelationships);
+
     entities.forEach(entity => {
       const BOTTOM_FIELDS = new Set(['created_at', 'created_by', 'last_changed_by']);
       const raw    = entity.fields || [];
@@ -847,12 +914,13 @@ function _renderErdEntities(jsonSchema) {
       const isAudit= f => /audit only/i.test(f.constraints || '');
 
       const fieldsHtml = fields.map(f => {
-        const badge = isPk(f) ? ' <span class="erd-pk-badge">PK</span>'
-                   : isFk(f) ? ' <span class="erd-fk-badge">FK</span>'
-                   : isAudit(f) ? ' <span class="erd-audit-badge">AUDIT</span>'
-                   : '';
+        const badge = isPk(f) ? '<span class="erd-pk-badge">PK</span>'
+                   : isFk(f) ? '<span class="erd-fk-badge">FK</span>'
+                   : isAudit(f) ? '<span class="erd-audit-badge">AUDIT</span>'
+                   : '<span class="erd-no-badge"></span>';
         return `<div class="erd-field">
-          <span class="erd-field-name">${f.name}${badge}</span>
+          ${badge}
+          <span class="erd-field-name">${f.name}</span>
           <span class="erd-field-type">${f.type || 'any'}</span>
         </div>`;
       }).join('');
@@ -860,11 +928,19 @@ function _renderErdEntities(jsonSchema) {
       const el = document.createElement('div');
       el.className = 'erd-entity';
       el.id = `erd-${entity.name}`;
+      const pos = positions[entity.name];
+      if (pos) { el.style.left = pos.left + 'px'; el.style.top = pos.top + 'px'; }
       el.innerHTML = `
-        <div class="erd-entity-header">${entity.name}</div>
+        <div class="erd-entity-header"><span class="erd-entity-icon">${_ERD_HEADER_ICON}</span>${entity.name}</div>
         <div class="erd-fields">${fieldsHtml || '<div class="erd-field erd-empty-field">no fields</div>'}</div>`;
       erdEntities.appendChild(el);
     });
+
+    // Size the canvas to fit positions so arrows draw correctly.
+    const maxRight  = Math.max(...Object.values(positions).map(p => p.left)) + 240 + 40;
+    const maxBottom = Math.max(...Object.values(positions).map(p => p.top))  + 240 + 40;
+    erdEntities.style.minWidth  = maxRight + 'px';
+    erdEntities.style.minHeight = maxBottom + 'px';
     return;
   }
 
@@ -936,8 +1012,8 @@ function _renderErdEntities(jsonSchema) {
 
 function _drawErdArrows() {
   erdSvg.innerHTML = `<defs>
-    <marker id="erd-ah" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
-      <polygon points="0 0, 7 2.5, 0 5" fill="#0891b2" opacity="0.65"/>
+    <marker id="erd-ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#036868" opacity="0.85"/>
     </marker>
   </defs>`;
 
@@ -2014,10 +2090,10 @@ async function confUploadEvidence(file) {
       `<span class="conf-sel-words">${data.word_count.toLocaleString()} words</span>`;
 
     btnRunConformance.disabled = false;
-    btnRunConformance.textContent = 'Run Conformance Check →';
+    btnRunConformance.textContent = 'Run Audit Check →';
   } catch (e) {
     alert(`Evidence upload failed: ${e.message}`);
-    btnRunConformance.textContent = 'Run Conformance Check →';
+    btnRunConformance.textContent = 'Run Audit Check →';
   } finally {
     confDropZone.classList.remove('uploading');
   }
@@ -2026,93 +2102,10 @@ async function confUploadEvidence(file) {
 btnRunConformance.addEventListener('click', confRunAnalysis);
 
 // ── Conformance: live-data evidence option ─────────────────────────────────
-const btnConfLiveData = document.getElementById('btn-conf-live-data');
 
-function _formatLiveEvidenceText(summary, stepsByName) {
-  const lines = [];
-  lines.push('OPERATIONAL DATA REPORT — LIVE (auto-generated from production logs)');
-  lines.push('');
-  lines.push(`${summary.total_applications} loan applications processed in the reporting period.`);
-  const sb = summary.status_breakdown || {};
-  const sbStr = Object.entries(sb).map(([k, v]) => `${v} ${k}`).join(', ');
-  lines.push(`Status breakdown: ${sbStr || 'n/a'}.`);
-  lines.push(`Total loan value: $${(summary.total_amount_usd || 0).toLocaleString()}.`);
-  lines.push(`Average end-to-end cycle time on disbursed loans: ${summary.avg_cycle_time_hours ?? 'n/a'} hours.`);
-  lines.push(`Total step executions logged: ${summary.step_executions_total}.`);
-  lines.push('');
-
-  // Per-step actual reality vs SOP expectations
-  lines.push('STEP-BY-STEP RECORD:');
-  Object.values(stepsByName || {}).forEach(s => {
-    lines.push('');
-    lines.push(`${s.step_name.toUpperCase()} (SOP: ${s.expected_role} on ${s.expected_system}, ${s.sla_hours}h SLA):`);
-    lines.push(`  ${s.execution_count} executions: ${s.completed_count} completed, ${s.breach_count} breached, ${s.skipped_count} skipped, ${s.in_progress_count} in progress.`);
-    if (s.avg_duration_hours != null) {
-      lines.push(`  Average duration: ${s.avg_duration_hours} hours${s.sla_hours && s.avg_duration_hours > s.sla_hours ? ` — EXCEEDS SLA of ${s.sla_hours}h.` : '.'}`);
-    }
-    if (s.breach_count > 0) {
-      lines.push(`  SLA BREACH RATE: ${s.breach_rate_pct}% (${s.breach_count} of ${s.execution_count}).`);
-    }
-    if (s.role_mismatch_count > 0) {
-      const wrongRoles = (s.actual_roles || []).filter(r => r.role !== s.expected_role).map(r => `${r.role} (${r.count}x)`).join(', ');
-      lines.push(`  ROLE DEVIATION: ${s.role_mismatch_count} executions performed by someone other than ${s.expected_role}: ${wrongRoles}.`);
-    }
-    if (s.system_mismatch_count > 0) {
-      const wrongSys = (s.actual_systems || []).filter(x => x.system !== s.expected_system).map(x => `${x.system} (${x.count}x)`).join(', ');
-      lines.push(`  SYSTEM DEVIATION: ${s.system_mismatch_count} executions used a system other than ${s.expected_system}: ${wrongSys}.`);
-    }
-  });
-  lines.push('');
-  lines.push('Top breached steps overall: ' +
-    (summary.top_breached_steps || []).map(b => `${b.step_name} (${b.breach_count})`).join(', ') + '.');
-  return lines.join('\n');
-}
-
-if (btnConfLiveData) {
-  btnConfLiveData.addEventListener('click', async () => {
-    if (!currentGraphId) {
-      alert('Extract a graph before running conformance.');
-      return;
-    }
-    btnConfLiveData.disabled = true;
-    const origLabel = btnConfLiveData.querySelector('span').textContent;
-    btnConfLiveData.querySelector('span').textContent = 'Loading live data…';
-    confDropZone.classList.add('uploading');
-    btnRunConformance.disabled = true;
-    btnRunConformance.textContent = 'Loading live data…';
-    try {
-      const [summary, steps] = await Promise.all([fetchLiveSummary(true), fetchLiveSteps(true)]);
-      if (!summary || !steps) throw new Error('Live data unavailable');
-      const text = _formatLiveEvidenceText(summary, steps);
-      const blob = new Blob([text], { type: 'text/plain' });
-      const fd = new FormData();
-      fd.append('graph_id', currentGraphId);
-      fd.append('file', blob, 'live_operational_data.txt');
-      const res = await fetch(`${API_BASE}/conformance/upload`, { method: 'POST', body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || res.statusText);
-      }
-      const data = await res.json();
-      conformanceEvidenceId = data.evidence_id;
-      confFileSelected.hidden = false;
-      confFileSelected.innerHTML =
-        `<span class="conf-sel-name">📊 ${data.filename} <span class="conf-sel-live-tag">LIVE</span></span>` +
-        `<span class="conf-sel-words">${data.word_count.toLocaleString()} words</span>`;
-      btnRunConformance.disabled = false;
-      btnRunConformance.textContent = 'Run Conformance Check →';
-      // Auto-run analysis since the user explicitly chose live data.
-      confRunAnalysis();
-    } catch (e) {
-      alert(`Live data conformance failed: ${e.message}`);
-      btnRunConformance.textContent = 'Run Conformance Check →';
-    } finally {
-      btnConfLiveData.querySelector('span').textContent = origLabel;
-      btnConfLiveData.disabled = !currentGraphId;
-      confDropZone.classList.remove('uploading');
-    }
-  });
-}
+// Live-data path for Audit Check removed — that question is now answered by
+// Process Mining → Execution Conformance (data-vs-SOP). Audit Check stays
+// document-only (auditor narrative vs SOP, judged by Claude).
 
 async function confRunAnalysis() {
   if (!currentGraphId || !conformanceEvidenceId) return;
@@ -2406,7 +2399,7 @@ btnConfResetUpload.addEventListener('click', () => {
   conformanceResult = null;
   conformanceActiveOverlay = null;
   btnRunConformance.disabled = true;
-  btnRunConformance.textContent = 'Run Conformance Check →';
+  btnRunConformance.textContent = 'Run Audit Check →';
   resetGraphHighlight();
   gapHighlightBanner.hidden = true;
   gapHighlightActive = false;
@@ -2457,6 +2450,14 @@ function updatePulseBadge(items) {
   }
 }
 
+/* Pulse drawer state — frontend-only filter + dismiss tracking. */
+const pulseUi = {
+  activeFilter: 'all',          // 'all' | 'critical' | 'warning' | 'info'
+  dismissed:    new Set(),      // item.id values hidden until next fetch
+};
+const PULSE_SEV_LABEL = { critical: 'CRITICAL', warning: 'WARNING', info: 'INFO' };
+const PULSE_CATEGORY_SOURCE = { NOW: 'Pulse · Urgent', THIS_WEEK: 'Pulse · This Week', BACKLOG: 'Pulse · Backlog' };
+
 function renderPulseItems(items) {
   pulseDrawerBody.innerHTML = '';
 
@@ -2465,20 +2466,43 @@ function renderPulseItems(items) {
     return;
   }
 
-  const ORDER     = ['NOW', 'THIS_WEEK', 'BACKLOG'];
-  const CAT_LABEL = { NOW: '🔴 Now', THIS_WEEK: '🟡 This Week', BACKLOG: '🔵 Backlog' };
+  // Filter tab strip (only show severities that have items, plus All).
+  const presentSevs = ['critical', 'warning', 'info'].filter(s => items.some(i => i.severity === s));
+  const tabs = ['all', ...presentSevs];
+  const TAB_LABEL = { all: 'All', critical: 'Critical', warning: 'Warning', info: 'Info' };
 
-  ORDER.forEach(cat => {
-    const group = items.filter(i => i.category === cat);
-    if (!group.length) return;
-    const header = document.createElement('div');
-    header.className   = 'pulse-category-header';
-    header.textContent = CAT_LABEL[cat];
-    pulseDrawerBody.appendChild(header);
-    group.forEach(item => pulseDrawerBody.appendChild(buildPulseCard(item)));
+  const filterStrip = document.createElement('div');
+  filterStrip.className = 'pulse-filter-strip';
+  filterStrip.innerHTML = tabs.map(t => `
+    <button class="pulse-filter-tab pulse-filter-${t} ${t === pulseUi.activeFilter ? 'pulse-filter-active' : ''}" data-pulse-filter="${t}">
+      ${TAB_LABEL[t]}
+      ${t !== 'all' ? `<span class="pulse-filter-count">${items.filter(i => i.severity === t).length}</span>` : ''}
+    </button>
+  `).join('');
+  pulseDrawerBody.appendChild(filterStrip);
+
+  filterStrip.querySelectorAll('.pulse-filter-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      pulseUi.activeFilter = btn.getAttribute('data-pulse-filter');
+      renderPulseItems(items);
+    });
   });
 
-  /* AI Insights section */
+  // Cards list (filtered + non-dismissed).
+  const visible = items
+    .filter(i => !pulseUi.dismissed.has(i.id))
+    .filter(i => pulseUi.activeFilter === 'all' || i.severity === pulseUi.activeFilter);
+
+  const list = document.createElement('div');
+  list.className = 'pulse-card-list';
+  if (!visible.length) {
+    list.innerHTML = '<div class="pulse-empty-state pulse-empty-filtered">No items match this filter.</div>';
+  } else {
+    visible.forEach(item => list.appendChild(buildPulseCard(item, items)));
+  }
+  pulseDrawerBody.appendChild(list);
+
+  /* AI Insights — kept, slightly tightened. */
   const aiSection = document.createElement('div');
   aiSection.className = 'pulse-ai-section';
   aiSection.id        = 'pulse-ai-section';
@@ -2503,25 +2527,33 @@ function renderPulseItems(items) {
   pulseDrawerBody.appendChild(disclaimer);
 }
 
-function buildPulseCard(item) {
+function buildPulseCard(item, allItems) {
   const card = document.createElement('div');
-  card.className = `pulse-item-card sev-${item.severity}`;
+  card.className = `pulse-item-card pulse-sev-${item.severity}`;
 
   const hasNodes  = item.affected_node_ids && item.affected_node_ids.length > 0;
-  const countText = hasNodes
-    ? `${item.affected_node_ids.length} node${item.affected_node_ids.length !== 1 ? 's' : ''}`
+  const sevLabel  = PULSE_SEV_LABEL[item.severity] || item.severity.toUpperCase();
+  const source    = PULSE_CATEGORY_SOURCE[item.category] || 'Pulse';
+  const nodeRef   = hasNodes
+    ? ` · ${item.affected_node_ids.length} node${item.affected_node_ids.length !== 1 ? 's' : ''}`
     : '';
-  const viewBtnHtml = hasNodes ? `<button class="pulse-view-btn">View in Graph →</button>` : '';
+  const viewBtnHtml = hasNodes
+    ? `<button class="pulse-view-btn pulse-action-primary">
+         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+         View in Graph
+       </button>`
+    : '';
 
   card.innerHTML = `
-    <div class="pulse-item-header">
-      <span class="pulse-sev-dot sev-${item.severity}"></span>
-      <span class="pulse-item-title">${item.title}</span>
+    <div class="pulse-card-head">
+      <span class="pulse-sev-pill pulse-sev-${item.severity}">${sevLabel}</span>
+      <span class="pulse-card-time pm-mono">just now</span>
     </div>
-    <div class="pulse-item-desc">${item.description}</div>
-    <div class="pulse-item-footer">
-      <span class="pulse-affected-count">${countText}</span>
+    <div class="pulse-card-title">${_esc(item.title)}</div>
+    <div class="pulse-card-source pm-mono">Source: ${_esc(source)}${nodeRef}</div>
+    <div class="pulse-card-actions">
       ${viewBtnHtml}
+      <button class="pulse-action-ghost pulse-dismiss-btn">Dismiss</button>
     </div>
   `;
 
@@ -2545,6 +2577,12 @@ function buildPulseCard(item) {
       });
     });
   }
+
+  card.querySelector('.pulse-dismiss-btn').addEventListener('click', () => {
+    pulseUi.dismissed.add(item.id);
+    renderPulseItems(allItems);
+  });
+
   return card;
 }
 
@@ -2845,10 +2883,9 @@ btnReset.addEventListener('click', () => {
   confFileSelected.hidden  = true;
   confFileSelected.innerHTML = '';
   btnRunConformance.disabled = true;
-  btnRunConformance.textContent = 'Run Conformance Check →';
+  btnRunConformance.textContent = 'Run Audit Check →';
   confGraphInfo.textContent = 'No graph loaded';
   confMainDocRow.hidden = true;
-  if (btnConfLiveData) btnConfLiveData.disabled = true;
   const _btnReportReset = document.getElementById('btn-generate-report');
   if (_btnReportReset) _btnReportReset.disabled = true;
   liveSummary = null;
@@ -2881,12 +2918,10 @@ function _dashHealthBand(score) {
 }
 
 function _dashAvgSlaCompliance() {
-  if (!currentWorkflows || !currentWorkflows.length) return null;
-  const vals = currentWorkflows
-    .map(w => parseFloat(w.sla_compliance_rate))
-    .filter(v => !isNaN(v));
-  if (!vals.length) return null;
-  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  // SLA compliance % = 100 − (breach rate). Sourced from Process Mining.
+  const k = pmState?.data?.kpis;
+  if (!k || k.breach_rate_pct == null) return null;
+  return Math.max(0, Math.round(100 - k.breach_rate_pct));
 }
 
 function _dashHealthScore(coverage, sla, conform) {
@@ -2927,52 +2962,45 @@ function _dashCollectTopIssues() {
       });
     }
   });
-  // SLA-breaching workflow steps
-  (currentWorkflows || []).forEach(wf => {
-    (wf.as_is_steps || []).forEach(step => {
-      if (step.sla_status === 'breach') {
-        const ids = [];
-        if (step.responsible_role?.node_id) ids.push(step.responsible_role.node_id);
-        if (step.system_used?.node_id)      ids.push(step.system_used.node_id);
-        issues.push({
-          kind:       'sla',
-          severity:   'critical',
-          title:      `SLA breach: ${step.name}`,
-          detail:     `${wf.title} — current ${step.current_avg || '?'} vs target ${step.sla_target || '?'}`,
-          node_ids:   ids,
-          navigate:   'workflows',
-          workflow_id: wf.id,
-        });
-      }
-    });
+  // Process Mining deviation patterns (replaces workflow SLA breaches).
+  const pmPatterns = pmState?.data?.conformance?.deviation_patterns || [];
+  const PM_SEV_TO_DASH = { critical: 'critical', high: 'critical', medium: 'warning', low: 'info' };
+  pmPatterns.forEach(p => {
+    const sev = PM_SEV_TO_DASH[p.severity] || 'info';
+    if (sev === 'critical' || sev === 'warning') {
+      issues.push({
+        kind:     'pm',
+        severity: sev,
+        title:    p.label,
+        detail:   `${p.case_count} case${p.case_count === 1 ? '' : 's'} · ${p.severity}`,
+        node_ids: [],
+        navigate: 'workflows',
+      });
+    }
   });
   const sevOrder = { critical: 0, warning: 1, info: 2 };
   issues.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity]);
   return issues.slice(0, 5);
 }
 
-function _dashCollectQuickWins() {
-  return (currentWorkflows || [])
-    .filter(w => w.roi && w.roi.headline_value_usd)
-    .sort((a, b) => (b.roi.headline_value_usd || 0) - (a.roi.headline_value_usd || 0))
+/* Top hotspots — highest-impact deviation patterns from Process Mining.
+   Replaces the old "Quick wins · ROI" surface (which depended on the
+   removed workflow narrative generation). */
+function _dashCollectHotspots() {
+  const patterns = pmState?.data?.conformance?.deviation_patterns || [];
+  const sevWeight = { critical: 4, high: 3, medium: 2, low: 1 };
+  return [...patterns]
+    .sort((a, b) => {
+      const sw = (sevWeight[b.severity] || 0) - (sevWeight[a.severity] || 0);
+      return sw !== 0 ? sw : (b.case_count || 0) - (a.case_count || 0);
+    })
     .slice(0, 4);
 }
 
-function _dashCollectAutomationHighlights() {
-  const all = [];
-  (currentWorkflows || []).forEach(wf => {
-    const stepNames = {};
-    (wf.as_is_steps || []).forEach(s => { stepNames[s.step_number] = s.name || ''; });
-    (wf.automation?.step_scores || []).forEach(s => {
-      all.push({
-        score:    s.automation_score || 0,
-        approach: s.suggested_approach || '',
-        step:     stepNames[s.step_number] || `Step ${s.step_number}`,
-        workflow: wf.title,
-      });
-    });
-  });
-  return all.sort((a, b) => b.score - a.score).slice(0, 3);
+/* Top deviating cases — concrete narratives from Process Mining.
+   Replaces the old "Automation highlights" surface. */
+function _dashCollectTopDeviatingCases() {
+  return (pmState?.data?.conformance?.deviating_cases_top || []).slice(0, 3);
 }
 
 function _dashFmtUSD(n) {
@@ -2982,12 +3010,16 @@ function _dashFmtUSD(n) {
   return `$${n}`;
 }
 
-function _dashTotalRoi() {
-  if (!currentWorkflows || !currentWorkflows.length) return null;
-  const total = currentWorkflows
-    .map(w => Number(w.roi?.headline_value_usd) || 0)
-    .reduce((a, b) => a + b, 0);
-  return total > 0 ? total : null;
+/* Bottleneck info for the hero KPI tile that used to show Total ROI. */
+function _dashBottleneckInfo() {
+  const k = pmState?.data?.kpis;
+  if (!k || !k.bottleneck_step) return null;
+  const a = (pmState.data.activities || []).find(x => x.id === k.bottleneck_step);
+  return {
+    name:        k.bottleneck_step,
+    breaches:    a?.breach_count || 0,
+    role_mismatches: a?.role_mismatch_count || 0,
+  };
 }
 
 function _dashEmptyHtml() {
@@ -3055,7 +3087,7 @@ function renderDashboard() {
   const conform  = conformanceResult?.overall_conformance_rate ?? null;
   const health   = _dashHealthScore(coverage, sla, conform);
   const band     = health !== null ? _dashHealthBand(health) : null;
-  const totalRoi = _dashTotalRoi();
+  const bottleneck = _dashBottleneckInfo();
 
   const typeCounts = {};
   (currentGraph.nodes || []).forEach(n => {
@@ -3063,18 +3095,18 @@ function renderDashboard() {
   });
 
   const issues    = _dashCollectTopIssues();
-  const quickWins = _dashCollectQuickWins();
-  const autoTop   = _dashCollectAutomationHighlights();
+  const hotspots  = _dashCollectHotspots();
+  const devCases  = _dashCollectTopDeviatingCases();
 
   const nodeCount = (currentGraph.nodes || []).length;
   const edgeCount = (currentGraph.edges || []).length;
-  const wfCount   = (currentWorkflows || []).length;
+  const pmCases   = pmState?.data?.kpis?.total_cases ?? 0;
 
   const checklist = [
     { label: 'Graph extracted',  done: !!currentGraph,                                     nav: 'nav-graph',       view: 'graph' },
-    { label: 'Workflows',        done: !!(currentWorkflows && currentWorkflows.length),    nav: 'nav-workflows',   view: 'workflows' },
+    { label: 'Process Mining',   done: !!pmState?.data,                                    nav: 'nav-workflows',   view: 'workflows' },
     { label: 'Gap analysis',     done: !!gapAnalysisResult,                                nav: 'nav-gap',         view: 'gap' },
-    { label: 'Conformance',      done: !!conformanceResult,                                nav: 'nav-conformance', view: 'conformance' },
+    { label: 'Audit Check',      done: !!conformanceResult,                                nav: 'nav-conformance', view: 'conformance' },
   ];
 
   // ── Hero command bar — health ring + 4 KPI tiles ──────────────────────────
@@ -3144,14 +3176,24 @@ function renderDashboard() {
           <div class="dash-hero-counts">
             <span class="dash-hero-count"><b>${nodeCount}</b><i>nodes</i></span>
             <span class="dash-hero-count"><b>${edgeCount}</b><i>edges</i></span>
-            <span class="dash-hero-count"><b>${wfCount}</b><i>workflows</i></span>
+            <span class="dash-hero-count"><b>${pmCases}</b><i>cases</i></span>
           </div>
         </div>
         <div class="dash-kpi-grid">
           ${kpiTile('Coverage',     coverage !== null ? `${coverage}`   : null, ...(coverage !== null ? _covStatus(coverage)  : ['', '']), 'nav-gap',         'gap',         coverage === null)}
           ${kpiTile('SLA',          sla      !== null ? `${sla}%`       : null, ...(sla      !== null ? _slaStatus(sla)      : ['', '']), 'nav-workflows',   'workflows',   sla      === null)}
           ${kpiTile('Conformance',  conform  !== null ? `${conform}%`   : null, ...(conform  !== null ? _confStatus(conform) : ['', '']), 'nav-conformance', 'conformance', conform  === null)}
-          ${kpiTile('Total ROI',    totalRoi !== null ? _dashFmtUSD(totalRoi) : null, totalRoi !== null ? 'Annual value freed' : '', 'dash-status-good', 'nav-workflows', 'workflows', totalRoi === null, 'dash-kpi-roi')}
+          ${(() => {
+              if (!bottleneck) {
+                return kpiTile('Bottleneck', null, '', '', 'nav-workflows', 'workflows', true, 'dash-kpi-bottleneck');
+              }
+              const b = bottleneck;
+              const cls = (b.breaches >= 2 || b.role_mismatches >= 1) ? 'dash-status-poor' : 'dash-status-warn';
+              const detail = b.breaches > 0
+                ? `${b.breaches} breach${b.breaches === 1 ? '' : 'es'}`
+                : `${b.role_mismatches} role mismatch${b.role_mismatches === 1 ? '' : 'es'}`;
+              return kpiTile('Bottleneck', b.name, detail, cls, 'nav-workflows', 'workflows', false, 'dash-kpi-bottleneck');
+          })()}
         </div>
       </div>
     </section>`;
@@ -3211,47 +3253,53 @@ function renderDashboard() {
       </div>
     </article>`;
 
-  const quickWinsCard = quickWins.length ? `
+  const PM_SEV_DASH_CLASS = { critical: 'dash-sev-critical', high: 'dash-sev-critical', medium: 'dash-sev-warning', low: 'dash-sev-info' };
+  const PM_SEV_LABEL_SHORT = { critical: 'CRIT', high: 'HIGH', medium: 'MED', low: 'LOW' };
+
+  const hotspotsCard = hotspots.length ? `
     <article class="dash-card dash-anim" style="--anim-delay:120ms">
       <header class="dash-card-head">
-        <span class="dash-card-label">Quick wins · ROI</span>
-        <span class="dash-card-count">${quickWins.length}</span>
+        <span class="dash-card-label">Top hotspots</span>
+        <span class="dash-card-count">${hotspots.length}</span>
       </header>
-      <ul class="dash-quickwins-list">
-        ${quickWins.map(w => `
-          <li class="dash-quickwin-item" data-wf-id="${w.id}">
-            <span class="dash-qw-amount">${w.roi.headline_value_display || _dashFmtUSD(w.roi.headline_value_usd)}</span>
-            <span class="dash-qw-title">${w.title}</span>
+      <ul class="dash-hotspots-list">
+        ${hotspots.map(h => `
+          <li class="dash-hotspot-item ${PM_SEV_DASH_CLASS[h.severity] || ''}" data-nav="nav-workflows" data-view="workflows">
+            <span class="dash-hotspot-sev ${PM_SEV_DASH_CLASS[h.severity] || ''}">${PM_SEV_LABEL_SHORT[h.severity] || h.severity.toUpperCase()}</span>
+            <span class="dash-hotspot-title">${_esc(h.label)}</span>
+            <span class="dash-hotspot-count">${h.case_count}</span>
             <span class="dash-qw-arrow">→</span>
           </li>`).join('')}
       </ul>
     </article>` : `
     <article class="dash-card dash-card-locked dash-anim" style="--anim-delay:120ms">
       <header class="dash-card-head">
-        <span class="dash-card-label">Quick wins · ROI</span>
+        <span class="dash-card-label">Top hotspots</span>
       </header>
       <div class="dash-card-empty">
-        <span>Generate workflows to surface dollar-value quick wins.</span>
-        <button class="dash-card-cta-btn" data-nav="nav-workflows" data-view="workflows">Generate →</button>
+        <span>Upload a document to surface deviation hotspots from operational data.</span>
+        <button class="dash-card-cta-btn" data-nav="nav-workflows" data-view="workflows">Open Process Mining →</button>
       </div>
     </article>`;
 
-  const autoCard = autoTop.length ? `
+  const devCasesCard = devCases.length ? `
     <article class="dash-card dash-anim" style="--anim-delay:200ms">
       <header class="dash-card-head">
-        <span class="dash-card-label">Automation highlights</span>
-        <span class="dash-card-count">${autoTop.length}</span>
+        <span class="dash-card-label">Top deviating cases</span>
+        <span class="dash-card-count">${devCases.length}</span>
       </header>
-      <ul class="dash-auto-list">
-        ${autoTop.map(a => {
-          const tier = a.score >= 8 ? 'high' : a.score >= 5 ? 'med' : 'low';
+      <ul class="dash-devcases-list">
+        ${devCases.map(c => {
+          const sevCls = PM_SEV_DASH_CLASS[c.severity] || '';
+          const shortId = (c.case_id || '').split('-')[0] || (c.case_id || '').slice(0, 8);
           return `
-            <li class="dash-auto-item">
-              <span class="dash-auto-score dash-auto-tier-${tier}">${a.score}<i>/10</i></span>
-              <div class="dash-auto-text">
-                <div class="dash-auto-step">${a.step}</div>
-                <div class="dash-auto-meta">${a.workflow} · ${a.approach || '—'}</div>
+            <li class="dash-devcase-item" data-nav="nav-workflows" data-view="workflows">
+              <span class="dash-devcase-id pm-mono">${_esc(shortId)}</span>
+              <div class="dash-devcase-text">
+                <div class="dash-devcase-applicant">${_esc(c.applicant || '—')}</div>
+                <div class="dash-devcase-deviation">${_esc(c.deviation || '')}</div>
               </div>
+              <span class="dash-devcase-sev ${sevCls}">${PM_SEV_LABEL_SHORT[c.severity] || c.severity.toUpperCase()}</span>
             </li>`;
         }).join('')}
       </ul>
@@ -3260,7 +3308,7 @@ function renderDashboard() {
   const bodyHtml = `
     <section class="dash-body-grid">
       <div class="dash-body-col">${issuesCard}${compositionCard}</div>
-      <div class="dash-body-col">${quickWinsCard}${autoCard}</div>
+      <div class="dash-body-col">${hotspotsCard}${devCasesCard}</div>
     </section>`;
 
   // ── Live Operational Data — promoted band ─────────────────────────────────
@@ -3323,7 +3371,7 @@ function renderDashboard() {
     });
   });
 
-  panel.querySelectorAll('.dash-quickwin-item').forEach(li => {
+  panel.querySelectorAll('.dash-hotspot-item, .dash-devcase-item').forEach(li => {
     li.addEventListener('click', () => {
       setNavActive('nav-workflows');
       switchView('workflows');
@@ -3454,6 +3502,9 @@ async function loadProcessMining() {
                               || data.activities[0]?.id || null;
     pmState.selectedVariantId  = data.variants[0]?.id || null;
     pmRender();
+    // Dashboard pulls PM data for hotspots / deviating cases / bottleneck tile —
+    // re-render it so those sections populate without requiring a nav back.
+    if (typeof renderDashboard === 'function' && currentGraph) renderDashboard();
   } catch (e) {
     console.error('loadProcessMining error:', e);
   } finally {

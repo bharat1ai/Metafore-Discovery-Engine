@@ -17,27 +17,39 @@ from typing import Any
 # ── CSS (embedded so the report is one self-contained HTML file) ────────────
 
 REPORT_CSS = r"""
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
+  /* Metafore brand */
   --brand:       #036868;
   --brand-dark:  #024F4F;
   --brand-mid:   #007F7F;
   --brand-light: #E6F4F4;
+  --teal-bright: #00C4CC;
+  /* Surfaces */
   --bg:          #FFFFFF;
   --bg-soft:     #F7FAFA;
   --bg-card:     #F0FAFA;
   --border:      #C4E0E0;
   --border-light:#E0EFEF;
+  /* Text */
   --text:        #0f2020;
   --text-sec:    #4a6868;
   --text-muted:  #7a9a9a;
-  --critical:    #b91c1c;
-  --warn:        #b45309;
-  --ok:          #15803d;
+  /* Status quintet — design system colours, retuned for print legibility */
+  --ok:          #00936b;
+  --warn:        #b87f00;
+  --critical:    #c2421a;
+  --info:        #2563eb;
+  --violet:      #7C4FE0;
+  /* Type scale */
+  --sans:        'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mono:        'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
 }
 * { box-sizing: border-box; }
 html, body { background: var(--bg-soft); }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family: var(--sans);
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--text);
@@ -56,86 +68,110 @@ body {
   z-index: 10;
 }
 .btn-print {
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-mid) 100%);
+  background: var(--brand);
   color: #fff;
   border: none;
-  padding: 10px 18px;
+  padding: 9px 16px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(3,104,104,0.28);
-  letter-spacing: 0.02em;
-  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 12px rgba(3,104,104,0.22);
+  letter-spacing: 0;
+  font-family: var(--sans);
+  transition: background 0.12s, box-shadow 0.15s;
 }
 .btn-print:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(3,104,104,0.36);
+  background: var(--brand-dark);
+  box-shadow: 0 6px 16px rgba(3,104,104,0.30);
 }
 
-/* Hero header */
+/* Hero — page-1 cover. Solid teal (print-safe), brand wordmark, subtle accent bar */
 .report-hero {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-mid) 100%);
+  background: var(--brand);
   color: #fff;
-  padding: 30px 32px 26px;
+  padding: 36px 36px 30px;
   border-radius: 14px;
-  margin-bottom: 20px;
-  box-shadow: 0 12px 32px rgba(3,104,104,0.20);
+  margin-bottom: 22px;
+  page-break-after: always;
 }
-.report-hero::before {
+.report-hero::after {
   content: '';
   position: absolute;
-  top: -80px; right: -80px;
-  width: 280px; height: 280px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.16), transparent 70%);
-  pointer-events: none;
+  left: 36px; right: 36px; bottom: 22px;
+  height: 2px;
+  background: var(--teal-bright);
+  opacity: 0.7;
+}
+.report-brand {
+  position: relative; z-index: 1;
+  display: flex; align-items: baseline; gap: 10px;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  margin-bottom: 22px;
+  color: #fff;
+}
+.report-brand b { font-weight: 700; }
+.report-brand i {
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  opacity: 0.78;
+  border-left: 1px solid rgba(255,255,255,0.32);
+  padding-left: 10px;
+  margin-left: 4px;
 }
 .report-eyebrow {
   position: relative; z-index: 1;
+  font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(255,255,255,0.78);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .report-title {
   position: relative; z-index: 1;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin-bottom: 6px;
-  line-height: 1.2;
+  margin-bottom: 8px;
+  line-height: 1.18;
 }
 .report-subtitle {
   position: relative; z-index: 1;
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(255,255,255,0.82);
-  font-family: 'SF Mono', Consolas, monospace;
-  letter-spacing: 0.02em;
+  font-family: var(--mono);
+  letter-spacing: 0;
 }
 
-/* Section cards */
+/* Section cards — solid (print-safe), brand-teal mono section labels */
 .report-section {
   background: var(--bg);
   border: 1px solid var(--border-light);
   border-radius: 10px;
-  padding: 18px 22px;
+  padding: 20px 22px 18px;
   margin-bottom: 14px;
   box-shadow: 0 1px 3px rgba(3,104,104,0.04);
 }
 .report-section h2 {
-  font-size: 11px;
+  font-family: var(--mono);
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.10em;
   color: var(--brand);
-  margin: 0 0 14px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid var(--brand-light);
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -143,32 +179,33 @@ body {
 .report-section h2::before {
   content: '';
   display: inline-block;
-  width: 4px; height: 14px;
+  width: 3px; height: 14px;
   background: var(--brand);
   border-radius: 2px;
 }
 .report-section h3 {
+  font-family: var(--sans);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
-  margin: 14px 0 6px;
+  margin: 16px 0 8px;
   letter-spacing: -0.01em;
 }
 .report-section p { margin: 4px 0; }
+.report-section strong { font-weight: 600; color: var(--text); }
 
-/* KPI strip */
+/* KPI strip — IBM Plex Mono numerics, tightly tracked */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .kpi-card {
-  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-card) 100%);
+  background: var(--bg);
   border: 1px solid var(--border-light);
   border-radius: 9px;
-  padding: 12px 14px;
-  text-align: center;
+  padding: 13px 14px;
   position: relative;
   overflow: hidden;
 }
@@ -177,23 +214,24 @@ body {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-mid) 100%);
+  background: var(--brand);
 }
 .kpi-val {
+  font-family: var(--mono);
   font-size: 24px;
-  font-weight: 800;
-  color: var(--brand);
-  font-family: 'SF Mono', Consolas, monospace;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
   line-height: 1.05;
 }
 .kpi-label {
+  font-family: var(--mono);
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.10em;
-  margin-top: 5px;
+  margin-top: 6px;
 }
 
 /* Tables */
@@ -205,25 +243,27 @@ table.report-tbl {
 }
 table.report-tbl th, table.report-tbl td {
   text-align: left;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--border-light);
   vertical-align: top;
 }
 table.report-tbl th {
   background: var(--bg-card);
-  color: var(--text-sec);
+  color: var(--brand);
+  font-family: var(--mono);
   font-size: 9.5px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.10em;
-  border-bottom: 1.5px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 table.report-tbl tr:last-child td { border-bottom: none; }
-table.report-tbl tr:nth-child(even) td { background: rgba(230,244,244,0.25); }
+table.report-tbl tr:nth-child(even) td { background: rgba(230,244,244,0.30); }
 
-/* Badges */
+/* Badges — status quintet */
 .badge {
   display: inline-block;
+  font-family: var(--mono);
   font-size: 9px;
   font-weight: 700;
   padding: 3px 8px;
@@ -233,83 +273,66 @@ table.report-tbl tr:nth-child(even) td { background: rgba(230,244,244,0.25); }
   white-space: nowrap;
   text-transform: uppercase;
 }
-.badge-ok       { background: #dcfce7; color: var(--ok);       border-color: #86efac; }
-.badge-warn     { background: #fef3c7; color: var(--warn);     border-color: #fcd34d; }
-.badge-critical { background: #fee2e2; color: var(--critical); border-color: #fca5a5; }
-.badge-info     { background: var(--brand-light); color: var(--brand); border-color: var(--border); }
-
-/* Workflow card */
-.wf-summary-card {
-  background: var(--bg-soft);
-  border: 1px solid var(--border-light);
-  border-left: 4px solid var(--brand);
-  border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  box-shadow: 0 1px 2px rgba(3,104,104,0.04);
-}
-.wf-summary-card h3 { margin-top: 0; margin-bottom: 8px; }
-.wf-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-light);
-}
-.wf-summary-stat-label {
-  font-size: 9px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.10em;
-  font-weight: 700;
-  margin-bottom: 3px;
-}
-.wf-summary-stat-val {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--text);
-  font-family: 'SF Mono', Consolas, monospace;
-  letter-spacing: -0.02em;
-}
+.badge-ok       { background: rgba(0, 200, 150, 0.10); color: var(--ok);       border-color: rgba(0, 200, 150, 0.35); }
+.badge-warn     { background: rgba(255, 184, 0, 0.12); color: var(--warn);     border-color: rgba(255, 184, 0, 0.36); }
+.badge-critical { background: rgba(255, 107, 74, 0.12); color: var(--critical); border-color: rgba(255, 107, 74, 0.36); }
+.badge-info     { background: var(--brand-light);      color: var(--brand);    border-color: var(--border); }
 
 /* Insight list */
 ul.insight-list { padding-left: 0; list-style: none; margin: 6px 0; }
 ul.insight-list li {
-  padding: 9px 12px;
+  padding: 10px 13px;
   background: var(--bg-soft);
   border: 1px solid var(--border-light);
   border-left: 3px solid var(--brand);
   border-radius: 7px;
   margin-bottom: 6px;
   font-size: 11px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 ul.insight-list li.cat-gap          { border-left-color: var(--warn); }
 ul.insight-list li.cat-contradiction{ border-left-color: var(--critical); }
-ul.insight-list li.cat-inconsistency{ border-left-color: #7C3AED; }
+ul.insight-list li.cat-inconsistency{ border-left-color: var(--violet); }
 ul.insight-list li.cat-missing      { border-left-color: var(--brand); }
 
 /* Footer */
 .report-footer {
-  margin-top: 22px;
+  margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid var(--border-light);
+  font-family: var(--mono);
   font-size: 10px;
   color: var(--text-muted);
   text-align: center;
   letter-spacing: 0.04em;
+  line-height: 1.7;
 }
 
-/* Print rules */
+/* Print rules — break before each major section so each starts on its own page */
 @media print {
+  @page { margin: 16mm 14mm; }
   html, body { background: #fff; }
-  body { padding: 14px 18px 18px; max-width: none; }
+  body { padding: 0; max-width: none; }
   .no-print, .report-actions { display: none !important; }
-  .report-section { page-break-inside: avoid; box-shadow: none; border-color: var(--border); }
-  .report-section + .report-section { page-break-before: auto; }
-  .report-hero { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none; }
-  .kpi-card, .badge, .wf-summary-card, ul.insight-list li { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-section {
+    page-break-inside: avoid;
+    page-break-before: always;
+    box-shadow: none;
+    border-color: var(--border);
+  }
+  /* The hero owns page 1; the first section starts page 2 (already covered by page-break-after on hero). */
+  .report-section:first-of-type { page-break-before: avoid; }
+  .report-hero {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    box-shadow: none;
+    page-break-after: always;
+    margin-bottom: 0;
+  }
+  .kpi-card, .badge, ul.insight-list li {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  table.report-tbl { page-break-inside: auto; }
+  table.report-tbl tr { page-break-inside: avoid; }
   table.report-tbl tr:nth-child(even) td { background: transparent; }
 }
 
@@ -344,19 +367,14 @@ def _fmt_usd(n) -> str:
     return f"${n:.0f}"
 
 
-def _avg_sla_compliance(workflows: list[dict] | None):
-    if not workflows:
+def _avg_sla_compliance(pm: dict | None):
+    """SLA compliance % derived from Process Mining: 100 − breach_rate_pct."""
+    if not pm:
         return None
-    vals = []
-    for w in workflows:
-        try:
-            v = float(w.get("sla_compliance_rate", "").rstrip("%"))
-            vals.append(v)
-        except (TypeError, ValueError):
-            continue
-    if not vals:
+    rate = (pm.get("kpis") or {}).get("breach_rate_pct")
+    if rate is None:
         return None
-    return round(sum(vals) / len(vals))
+    return max(0, round(100 - rate))
 
 
 def _health_score(coverage, sla, conform):
@@ -388,8 +406,9 @@ def _hero(graph_id: str, sources: list[dict] | None) -> str:
                 else "no source documents")
     return f"""
 <header class="report-hero">
-  <div class="report-eyebrow">METAFORE WORKS · DISCOVERY ENGINE</div>
-  <div class="report-title">Process Discovery Executive Report</div>
+  <div class="report-brand"><b>Metafore</b><i>Discovery</i></div>
+  <div class="report-eyebrow">Executive Report</div>
+  <div class="report-title">Process Discovery</div>
   <div class="report-subtitle">Generated {_e(today)} · {_e(src_text)} · graph {_e(graph_id[:8])}…</div>
 </header>"""
 
@@ -411,19 +430,32 @@ def _cover_documents(sources: list[dict] | None) -> str:
 </section>"""
 
 
-def _executive_summary(graph, workflows, gap, conformance, live_summary) -> str:
+def _executive_summary(graph, pm, gap, conformance) -> str:
     nodes = (graph or {}).get("nodes", []) or []
     edges = (graph or {}).get("edges", []) or []
     coverage = (gap or {}).get("coverage_score") if gap else None
-    sla = _avg_sla_compliance(workflows)
+    sla = _avg_sla_compliance(pm)
     conform = (conformance or {}).get("overall_conformance_rate") if conformance else None
     health = _health_score(coverage, sla, conform)
     band_label, band_cls = _band(health)
+
+    pm_kpis = (pm or {}).get("kpis") or {}
+    pm_cases = pm_kpis.get("total_cases") or 0
+    pm_fitness = (pm or {}).get("conformance", {}).get("fitness")
+    pm_bottleneck = pm_kpis.get("bottleneck_step") or "—"
 
     coverage_t = f"{coverage}" if coverage is not None else "n/a"
     sla_t = f"{sla}%" if sla is not None else "n/a"
     conform_t = f"{conform}%" if conform is not None else "n/a"
     health_t = f"{health}/100" if health is not None else "n/a"
+
+    pm_narrative = ""
+    if pm_kpis:
+        pm_narrative = (
+            f" Process Mining surfaced <strong>{pm_cases}</strong> operational cases "
+            f"with a fitness of <strong>{pm_fitness if pm_fitness is not None else '—'}</strong> "
+            f"and identified <strong>{_e(pm_bottleneck)}</strong> as the principal bottleneck."
+        )
 
     return f"""
 <section class="report-section">
@@ -431,26 +463,23 @@ def _executive_summary(graph, workflows, gap, conformance, live_summary) -> str:
   <div class="kpi-grid">
     <div class="kpi-card"><div class="kpi-val">{len(nodes)}</div><div class="kpi-label">Graph nodes</div></div>
     <div class="kpi-card"><div class="kpi-val">{len(edges)}</div><div class="kpi-label">Relationships</div></div>
-    <div class="kpi-card"><div class="kpi-val">{len(workflows or [])}</div><div class="kpi-label">Workflows</div></div>
+    <div class="kpi-card"><div class="kpi-val">{pm_cases}</div><div class="kpi-label">Operational cases</div></div>
     <div class="kpi-card"><div class="kpi-val">{health_t}</div><div class="kpi-label">Health score</div></div>
   </div>
   <p>
     Overall health: <span class="badge badge-{band_cls}">{_e(band_label.upper())}</span>
     &nbsp;·&nbsp; Coverage <strong>{coverage_t}</strong>
     &nbsp;·&nbsp; SLA compliance <strong>{sla_t}</strong>
-    &nbsp;·&nbsp; Conformance <strong>{conform_t}</strong>
+    &nbsp;·&nbsp; Audit conformance <strong>{conform_t}</strong>
   </p>
   <p>
     The Discovery Engine extracted <strong>{len(nodes)}</strong> entities and
-    <strong>{len(edges)}</strong> relationships from the source material and
-    produced <strong>{len(workflows or [])}</strong> automation workflows with
-    embedded ROI, automation scoring, and process variants.
-    {('Live operational data from <strong>' + str(live_summary.get('total_applications', 0)) + '</strong> loan applications has been overlaid where step names match.') if live_summary else ''}
+    <strong>{len(edges)}</strong> relationships from the source material.{pm_narrative}
   </p>
 </section>"""
 
 
-def _top_issues(gap, workflows) -> str:
+def _top_issues(gap, pm) -> str:
     items = []
     SEV_BY_CHECK = {
         "no_role": "critical", "unlinked_policy": "critical",
@@ -461,11 +490,14 @@ def _top_issues(gap, workflows) -> str:
         if sev in ("critical", "warn") and (c.get("count") or 0) > 0:
             labels = ", ".join((c.get("affected_node_labels") or [])[:3])
             items.append((sev, c.get("title") or "", f"{c.get('count')} affected — {labels}"))
-    for w in workflows or []:
-        for s in w.get("as_is_steps") or []:
-            if s.get("sla_status") == "breach":
-                items.append(("critical", f"SLA breach: {s.get('name','')}",
-                              f"{w.get('title','')} — current {s.get('current_avg','?')} vs target {s.get('sla_target','?')}"))
+    # Process Mining deviation patterns (replaces workflow SLA breaches).
+    pm_patterns = ((pm or {}).get("conformance") or {}).get("deviation_patterns") or []
+    PM_SEV_TO_REPORT = {"critical": "critical", "high": "critical", "medium": "warn", "low": "info"}
+    for p in pm_patterns:
+        sev = PM_SEV_TO_REPORT.get(p.get("severity"), "info")
+        if sev in ("critical", "warn"):
+            items.append((sev, p.get("label") or "",
+                          f"{p.get('case_count', 0)} case(s) · severity {p.get('severity', '—')}"))
     if not items:
         return f"""
 <section class="report-section">
@@ -505,64 +537,85 @@ def _cross_doc_section(cross_doc: dict) -> str:
 </section>"""
 
 
-def _workflows_section(workflows: list[dict]) -> str:
-    if not workflows:
+def _process_mining_section(pm: dict | None) -> str:
+    if not pm or not pm.get("kpis"):
         return ""
-    cards = []
-    total_value = 0
-    for w in workflows:
-        title = w.get("title", "")
-        desc = w.get("description", "")
-        complexity = w.get("complexity", "")
-        sla = w.get("sla_target", "")
-        current = w.get("current_avg", "")
-        compliance = w.get("sla_compliance_rate", "")
-        roi = w.get("roi") or {}
-        roi_val = roi.get("headline_value_display") or "—"
-        roi_basis = roi.get("headline_basis") or ""
-        try:
-            total_value += int(roi.get("headline_value_usd") or 0)
-        except (TypeError, ValueError):
-            pass
-        auto = w.get("automation") or {}
-        avg_auto = auto.get("average_score")
-        pct_auto = auto.get("automatable_percentage")
-        variants = w.get("variants") or []
-        variant_a = next((v for v in variants if (v.get("divergence_point") is None)), None)
-        variant_a_freq = variant_a.get("frequency_pct") if variant_a else None
-        n_variants = len(variants)
+    k = pm.get("kpis") or {}
+    conf = pm.get("conformance") or {}
+    activities = pm.get("activities") or []
 
-        cards.append(f"""
-<div class="wf-summary-card">
-  <h3>{_e(title)} <span class="badge badge-info">{_e(complexity or '—').upper()}</span></h3>
-  <p style="color:var(--text-sec); font-size:11px;">{_e(desc)}</p>
-  <div class="wf-summary-grid">
-    <div>
-      <div class="wf-summary-stat-label">SLA target / current</div>
-      <div class="wf-summary-stat-val">{_e_or_dash(sla)} / {_e_or_dash(current)}</div>
-    </div>
-    <div>
-      <div class="wf-summary-stat-label">Compliance</div>
-      <div class="wf-summary-stat-val">{_e_or_dash(compliance)}</div>
-    </div>
-    <div>
-      <div class="wf-summary-stat-label">Estimated ROI</div>
-      <div class="wf-summary-stat-val" style="color:var(--brand);">{_e(roi_val)}</div>
-    </div>
-  </div>
-  <p style="font-size:10.5px; color:var(--text-sec); margin-top:8px;">
-    <strong>ROI basis:</strong> {_e(roi_basis)}<br>
-    <strong>Automation:</strong> avg {_e_or_dash(avg_auto)}/10 — {_e_or_dash(pct_auto)}% steps automatable
-    {f' &nbsp;·&nbsp; <strong>Variants:</strong> {n_variants} — Variant A coverage {variant_a_freq}%' if n_variants else ''}
-  </p>
-</div>""")
+    fitness = conf.get("fitness")
+    fitness_pct = round(fitness * 100) if fitness is not None else None
+    fitness_cls = "ok" if (fitness or 0) >= 0.80 else "warn" if (fitness or 0) >= 0.60 else "critical"
+    breach_pct = round(k.get("breach_rate_pct") or 0)
+    breach_cls = "ok" if breach_pct < 5 else "warn" if breach_pct < 20 else "critical"
 
-    summary_total = _fmt_usd(total_value) if total_value > 0 else "—"
+    bottleneck_name = k.get("bottleneck_step") or "—"
+    bottleneck_act = next((a for a in activities if a.get("id") == bottleneck_name), None)
+    bottleneck_detail = ""
+    if bottleneck_act:
+        parts = []
+        if bottleneck_act.get("breach_count"):
+            parts.append(f"{bottleneck_act['breach_count']} SLA breach(es)")
+        if bottleneck_act.get("role_mismatch_count"):
+            parts.append(f"{bottleneck_act['role_mismatch_count']} wrong-role event(s)")
+        bottleneck_detail = " · ".join(parts) if parts else "no breaches recorded"
+
+    # Top deviation patterns
+    pattern_rows = "".join(
+        f"<tr>"
+        f'<td><span class="badge badge-{("critical" if p.get("severity") in ("critical","high") else "warn" if p.get("severity")=="medium" else "info")}">{_e((p.get("severity") or "").upper())}</span></td>'
+        f"<td>{_e(p.get('label',''))}</td>"
+        f"<td>{p.get('case_count', 0)}</td>"
+        f"</tr>"
+        for p in (conf.get("deviation_patterns") or [])[:6]
+    ) or '<tr><td colspan="3" class="report-empty">No deviation patterns detected.</td></tr>'
+
+    # Top deviating cases
+    case_rows = "".join(
+        f"<tr>"
+        f"<td style='font-family:var(--mono); font-size:10.5px;'>{_e((c.get('case_id') or '')[:8])}</td>"
+        f"<td>{_e(c.get('applicant') or '—')}</td>"
+        f"<td>{_e(c.get('deviation') or '')}</td>"
+        f"<td>{c.get('tat_days') if c.get('tat_days') is not None else '—'}d</td>"
+        f'<td><span class="badge badge-{("critical" if c.get("severity") in ("critical","high") else "warn")}">{_e((c.get("severity") or "").upper())}</span></td>'
+        f"</tr>"
+        for c in (conf.get("deviating_cases_top") or [])[:6]
+    ) or '<tr><td colspan="5" class="report-empty">No deviating cases recorded.</td></tr>'
+
+    # Status breakdown
+    completed = k.get("completed_cases", 0)
+    in_progress = k.get("in_progress_cases", 0)
+    declined = k.get("declined_cases", 0)
+    breakdown = f"<strong>{completed}</strong> disbursed · <strong>{in_progress}</strong> in-progress · <strong>{declined}</strong> declined"
+
     return f"""
 <section class="report-section">
-  <h2>Workflow Automation Opportunities</h2>
-  <p><strong>Total estimated annual value (sum of all workflows): {summary_total}</strong></p>
-  {''.join(cards)}
+  <h2>Process Mining</h2>
+  <p style="color:var(--text-sec); font-size:11.5px; margin-bottom:14px;">
+    Operational behaviour mined from <strong>{k.get('total_step_executions', 0)}</strong> step executions
+    across <strong>{k.get('total_cases', 0)}</strong> cases ({breakdown}).
+  </p>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-val">{k.get('total_cases', 0)}</div><div class="kpi-label">Cases</div></div>
+    <div class="kpi-card"><div class="kpi-val">{k.get('median_tat_days', '—')}d</div><div class="kpi-label">Median TAT</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:var(--{fitness_cls})">{fitness_pct if fitness_pct is not None else '—'}%</div><div class="kpi-label">Fitness</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:var(--{breach_cls})">{breach_pct}%</div><div class="kpi-label">SLA breaches</div></div>
+  </div>
+  <h3>Bottleneck</h3>
+  <p>
+    <strong>{_e(bottleneck_name)}</strong> &nbsp;·&nbsp; {_e(bottleneck_detail or '—')}
+  </p>
+  <h3>Top Deviation Patterns</h3>
+  <table class="report-tbl">
+    <thead><tr><th style="width:90px">Severity</th><th>Pattern</th><th style="width:90px">Cases</th></tr></thead>
+    <tbody>{pattern_rows}</tbody>
+  </table>
+  <h3>Top Deviating Cases</h3>
+  <table class="report-tbl">
+    <thead><tr><th style="width:90px">Case</th><th>Applicant</th><th>Deviation</th><th style="width:60px">TAT</th><th style="width:90px">Severity</th></tr></thead>
+    <tbody>{case_rows}</tbody>
+  </table>
 </section>"""
 
 
@@ -621,12 +674,16 @@ def _conformance_section(conf: dict) -> str:
     summary = conf.get("summary", "")
     return f"""
 <section class="report-section">
-  <h2>Conformance Results</h2>
+  <h2>Audit Check</h2>
+  <p style="color:var(--text-sec); font-size:11.5px; margin-bottom:14px;">
+    Audit document compared against the SOP-extracted graph using Claude.
+    For data-vs-SOP analysis, see the Process Mining section above.
+  </p>
   <div class="kpi-grid">
-    <div class="kpi-card"><div class="kpi-val">{rate}%</div><div class="kpi-label">Conformance</div></div>
+    <div class="kpi-card"><div class="kpi-val">{rate}%</div><div class="kpi-label">Audit match rate</div></div>
     <div class="kpi-card"><div class="kpi-val">{confirmed}</div><div class="kpi-label">Confirmed</div></div>
     <div class="kpi-card"><div class="kpi-val">{deviated}</div><div class="kpi-label">Deviated</div></div>
-    <div class="kpi-card"><div class="kpi-val">{not_found}</div><div class="kpi-label">Not found</div></div>
+    <div class="kpi-card"><div class="kpi-val">{not_found}</div><div class="kpi-label">No evidence</div></div>
   </div>
   <p>Overall status: <span class="badge badge-{sev_cls}">{_e(('CONFORMING' if rate >= 70 else 'PARTIAL' if rate >= 50 else 'NON-CONFORMING'))}</span></p>
   <p>{_e(summary)}</p>
@@ -680,11 +737,111 @@ def _live_data_section(summary: dict, steps: list[dict] | None) -> str:
 </section>"""
 
 
+def _object_model_section(om: dict | None) -> str:
+    if not om:
+        return ""
+    schema = om.get("json_schema") or {}
+    entities = schema.get("entities") if isinstance(schema, dict) else None
+    if not entities:
+        # Legacy $defs / definitions format — surface only the entity count.
+        defs = (schema.get("$defs") or schema.get("definitions") or {}) if isinstance(schema, dict) else {}
+        entity_count = len(defs)
+        if entity_count == 0:
+            return ""
+        names = list(defs.keys())[:8]
+        return f"""
+<section class="report-section">
+  <h2>Object Model</h2>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-val">{entity_count}</div><div class="kpi-label">Entities</div></div>
+  </div>
+  <p>Entities: {_e(', '.join(names))}.</p>
+</section>"""
+
+    # BRD-format rendering — list each entity with field counts and a sample.
+    rels = schema.get("relationships") or []
+    rows = []
+    for ent in entities[:8]:
+        fields = ent.get("fields") or []
+        pk_count = sum(1 for f in fields if "primary key" in (f.get("constraints") or "").lower())
+        fk_count = sum(1 for f in fields if "foreign key" in (f.get("constraints") or "").lower())
+        # Show first 3 non-audit field names as a sample
+        sample_names = [
+            f.get("name", "")
+            for f in fields
+            if "audit only" not in (f.get("constraints") or "").lower()
+        ][:3]
+        sample = ", ".join(sample_names)
+        rows.append(
+            f"<tr>"
+            f"<td style='font-family:var(--mono); font-size:11px;'>{_e(ent.get('name', ''))}</td>"
+            f"<td>{len(fields)}</td>"
+            f"<td>{pk_count}</td>"
+            f"<td>{fk_count}</td>"
+            f"<td style='font-family:var(--mono); font-size:10.5px; color:var(--text-sec);'>{_e(sample)}</td>"
+            f"</tr>"
+        )
+    rel_count = len(rels)
+    return f"""
+<section class="report-section">
+  <h2>Object Model</h2>
+  <p style="color:var(--text-sec); font-size:11.5px; margin-bottom:14px;">
+    BRD-compliant entity model generated from the knowledge graph
+    (<strong>{len(entities)}</strong> entities · <strong>{rel_count}</strong> relationships).
+  </p>
+  <table class="report-tbl">
+    <thead>
+      <tr><th>Entity</th><th style="width:60px">Fields</th><th style="width:50px">PK</th><th style="width:50px">FK</th><th>Sample fields</th></tr>
+    </thead>
+    <tbody>{''.join(rows)}</tbody>
+  </table>
+</section>"""
+
+
+def _optimise_section(opt: dict | None) -> str:
+    if not opt:
+        return ""
+    summary = opt.get("summary") or ""
+    recs = opt.get("recommendations") or []
+    if not recs:
+        return ""
+    rows = []
+    for i, r in enumerate(recs[:6]):
+        effort = (r.get("effort") or "").lower()
+        eff_cls = "ok" if effort == "low" else "warn" if effort == "medium" else "critical"
+        rows.append(
+            f"<tr>"
+            f"<td style='width:30px; font-family:var(--mono); color:var(--brand);'>{i+1:02d}</td>"
+            f"<td>"
+            f"<div style='font-weight:600;'>{_e(r.get('title', ''))}</div>"
+            f"<div style='color:var(--text-sec); font-size:10.5px; margin-top:3px;'>{_e(r.get('rationale', ''))}</div>"
+            f"</td>"
+            f'<td><span class="badge badge-{eff_cls}">{_e(effort.upper() or "—")}</span></td>'
+            f"<td style='font-family:var(--mono); font-size:10.5px;'>{_e(r.get('expected_impact', ''))}</td>"
+            f"<td style='font-family:var(--mono); font-size:10.5px; color:var(--text-sec);'>{_e(r.get('target_step', '') or '—')}</td>"
+            f"</tr>"
+        )
+    return f"""
+<section class="report-section">
+  <h2>AI Optimisation Suggestions</h2>
+  <p style="color:var(--text-sec); font-size:11.5px; margin-bottom:14px;">{_e(summary)}</p>
+  <table class="report-tbl">
+    <thead>
+      <tr><th>#</th><th>Recommendation</th><th style="width:70px">Effort</th><th>Impact</th><th>Target step</th></tr>
+    </thead>
+    <tbody>{''.join(rows)}</tbody>
+  </table>
+  <p style="color:var(--text-muted); font-size:10px; margin-top:8px; font-style:italic;">
+    Generated via Claude Haiku from the current Process Mining snapshot.
+  </p>
+</section>"""
+
+
 def _footer() -> str:
     return f"""
 <div class="report-footer">
-  Generated by Metafore Works · Discovery Engine — {_e(datetime.now().strftime('%Y-%m-%d %H:%M'))}
-  <br>This report consolidates extracted graph, workflow, gap, conformance, cross-document and operational data already produced by the engine. No additional LLM calls were made to compose it.
+  Generated by Metafore — Discovery · {_e(datetime.now().strftime('%Y-%m-%d %H:%M'))}
+  <br>This report consolidates the extracted graph, process-mining, gap, audit, object-model, and AI-optimisation data already produced by the engine. The only optional LLM call composed into it is the AI Optimisation section, when run.
 </div>"""
 
 
@@ -703,14 +860,14 @@ def render_report(
     graph_id: str,
     *,
     graph: dict | None,
-    workflows: list[dict] | None,
-    gap: dict | None,
-    blueprint: dict | None,
-    conformance: dict | None,
-    cross_doc: dict | None,
-    sources: list[dict] | None,
-    live_summary: dict | None,
-    live_steps: list[dict] | None,
+    pm: dict | None = None,
+    gap: dict | None = None,
+    blueprint: dict | None = None,
+    conformance: dict | None = None,
+    cross_doc: dict | None = None,
+    sources: list[dict] | None = None,
+    object_model: dict | None = None,
+    optimise: dict | None = None,
 ) -> str:
     """Compose the full HTML report. All inputs except graph_id are optional —
     sections render conditionally based on what state has been populated."""
@@ -720,19 +877,21 @@ def render_report(
     parts: list[str] = [
         _hero(graph_id, sources),
         _cover_documents(sources),
-        _executive_summary(graph, workflows, gap, conformance, live_summary),
-        _top_issues(gap, workflows),
+        _executive_summary(graph, pm, gap, conformance),
+        _top_issues(gap, pm),
     ]
     if cross_doc:
         parts.append(_cross_doc_section(cross_doc))
-    if workflows:
-        parts.append(_workflows_section(workflows))
+    if pm and pm.get("kpis"):
+        parts.append(_process_mining_section(pm))
     if gap:
         parts.append(_gap_section(gap, blueprint))
     if conformance:
         parts.append(_conformance_section(conformance))
-    if live_summary:
-        parts.append(_live_data_section(live_summary, live_steps))
+    if object_model:
+        parts.append(_object_model_section(object_model))
+    if optimise:
+        parts.append(_optimise_section(optimise))
     parts.append(_footer())
 
     body = "\n".join(p for p in parts if p)
