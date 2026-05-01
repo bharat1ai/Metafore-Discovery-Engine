@@ -314,7 +314,7 @@ const nlqSubmit        = document.getElementById('nlq-submit');
 const nlqCloseBtn      = document.getElementById('nlq-close-btn');
 
 /* ── Panel view switcher ── */
-const PANEL_RATIOS = { dashboard: 50, graph: 35, workflows: 60, gap: 50, conformance: 50, 'object-model': 55 };
+const PANEL_RATIOS = { dashboard: 50, graph: 35, workflows: 100, gap: 50, conformance: 50, 'object-model': 55 };
 
 function switchView(view) {
   document.getElementById('dashboard-panel').hidden       = (view !== 'dashboard');
@@ -327,6 +327,10 @@ function switchView(view) {
   // Inspector panel is part of the Knowledge Graph 3-col layout — only visible there.
   const inspector = document.getElementById('detail-panel');
   if (inspector) inspector.hidden = (view !== 'graph');
+
+  // Workflows tab takes full screen — hide the always-visible graph canvas there.
+  const graphArea = document.querySelector('.graph-area');
+  if (graphArea) graphArea.hidden = (view === 'workflows');
 
   const pct = PANEL_RATIOS[view] ?? 35;
   const panel = document.querySelector('.upload-panel');
@@ -367,8 +371,8 @@ document.getElementById('nav-graph').addEventListener('click', () => {
 document.getElementById('nav-workflows').addEventListener('click', () => {
   setNavActive('nav-workflows');
   switchView('workflows');
-  if (currentGraphId && !workflowList.innerHTML.trim() && workflowSpinner.classList.contains('hidden')) {
-    generateWorkflows();
+  if (currentGraphId && !pmState.data) {
+    loadProcessMining();
   }
 });
 
@@ -485,6 +489,7 @@ async function extractGraph() {
     if (_btnReport) _btnReport.disabled = false;
     fetchPulse();
     nlqInit();
+    loadProcessMining();
 
     // Prefetch live operational data so Dashboard / Workflows render fast.
     fetchLiveSummary();
@@ -2156,7 +2161,7 @@ function confRenderScoreCard(result) {
   const rate  = result.overall_conformance_rate ?? 0;
   const color = rate >= 80 ? '#1D9E75' : rate >= 50 ? '#f97316' : '#ef4444';
   confScoreCard.innerHTML = `
-    <div class="conf-score-header">CONFORMANCE SCORE</div>
+    <div class="conf-score-header">AUDIT MATCH SCORE</div>
     <div class="conf-score-bar-wrap">
       <div class="conf-score-bar-track">
         <div class="conf-score-bar-fill" style="width:${rate}%;background:${color}"></div>
@@ -2801,6 +2806,7 @@ btnReset.addEventListener('click', () => {
   workflowList.innerHTML   = '';
   workflowThinMsg.hidden   = true;
   workflowSpinner.classList.add('hidden');
+  pmReset();
   pydanticCode.textContent = '';
   schemaCode.textContent   = '';
   modelSummary.textContent = '';
@@ -3385,5 +3391,845 @@ function _renderDashLiveOps(summary) {
     </div>
     ${stackedBarHtml}
     <div class="dash-liveops-statuses">${statusHtml}</div>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Process Mining (Celonis-style) — Workflows tab
+   Loads /api/process-mining/{graph_id} and renders 3 tabs:
+   Process Map · Variants · Conformance
+   ════════════════════════════════════════════════════════════════════ */
+
+const pmState = {
+  data:                null,
+  activeTab:           'map',
+  selectedActivityId:  null,
+  selectedVariantId:   null,
+  loading:             false,
+  filters:             { loan_types: [], statuses: [] },
+};
+
+const PM_SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
+const PM_SEV_TONE  = { critical: 'crit',     high: 'bad',  medium: 'warn',   low: 'info' };
+
+function pmReset() {
+  pmState.data = null;
+  pmState.activeTab = 'map';
+  pmState.selectedActivityId = null;
+  pmState.selectedVariantId = null;
+  const empty = document.getElementById('pm-empty-state');
+  const main  = document.getElementById('pm-main');
+  if (empty) empty.hidden = false;
+  if (main)  main.hidden  = true;
+  const svg = document.getElementById('pm-map-svg');
+  if (svg) {
+    // Preserve the <defs> children, drop the rest
+    [...svg.children].forEach(c => { if (c.tagName !== 'defs') svg.removeChild(c); });
+  }
+  ['pm-kpi-strip', 'pm-var-list', 'pm-var-detail', 'pm-conf-wrap', 'pm-map-inspector']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+}
+
+async function loadProcessMining() {
+  if (!currentGraphId || pmState.loading) return;
+  pmState.loading = true;
+  try {
+    const params = new URLSearchParams();
+    if (pmState.filters.loan_types.length) params.set('loan_types', pmState.filters.loan_types.join(','));
+    if (pmState.filters.statuses.length)   params.set('statuses',   pmState.filters.statuses.join(','));
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/api/process-mining/${currentGraphId}${qs}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      console.warn('Process mining fetch failed:', err.detail || res.statusText);
+      return;
+    }
+    const data = await res.json();
+    if (data.unseeded || data.error) {
+      console.warn('Process mining unseeded:', data);
+      return;
+    }
+    pmState.data = data;
+    // Default selections
+    pmState.selectedActivityId = data.activities.find(a => a.is_bottleneck)?.id
+                              || data.activities[0]?.id || null;
+    pmState.selectedVariantId  = data.variants[0]?.id || null;
+    pmRender();
+  } catch (e) {
+    console.error('loadProcessMining error:', e);
+  } finally {
+    pmState.loading = false;
+  }
+}
+
+function pmRender() {
+  const data = pmState.data;
+  const empty = document.getElementById('pm-empty-state');
+  const main  = document.getElementById('pm-main');
+  if (!data || !main) {
+    if (empty) empty.hidden = false;
+    if (main)  main.hidden = true;
+    return;
+  }
+  empty.hidden = true;
+  main.hidden  = false;
+
+  const meta = document.getElementById('pm-topbar-meta');
+  if (meta) {
+    const parts = [];
+    if (data.filtered) {
+      parts.push(`filtered: ${data.kpis.total_cases} of ${data.total_unfiltered} cases`);
+    } else {
+      parts.push(`${data.kpis.total_cases} cases`);
+    }
+    parts.push(`${data.kpis.total_activities} activities`);
+    parts.push(`${data.kpis.total_step_executions} step executions`);
+    if (data.kpis.bottleneck_step) parts.push(`bottleneck: ${data.kpis.bottleneck_step}`);
+    meta.textContent = parts.join(' · ');
+  }
+  const tabCount = document.getElementById('pm-tab-count-variants');
+  if (tabCount) tabCount.textContent = String(data.variants.length);
+
+  pmRenderKpis();
+  pmRenderSliderStrip();
+  pmRenderMap();
+  pmRenderVariants();
+  pmRenderConformance();
+}
+
+function pmRenderKpis() {
+  const d = pmState.data; if (!d) return;
+  const k = d.kpis;
+  const strip = document.getElementById('pm-kpi-strip');
+  if (!strip) return;
+
+  const breachTone   = k.breach_rate_pct >= 20 ? 'bad' : k.breach_rate_pct > 0 ? 'warn' : 'ok';
+  const tatTone      = k.median_tat_days != null && k.median_tat_days > 7 ? 'warn' : 'ok';
+  const conformPct   = Math.round((k.fitness ?? d.conformance.fitness) * 100);
+  const conformTone  = conformPct >= 80 ? 'ok' : conformPct >= 60 ? 'warn' : 'bad';
+  const roleTone     = (k.role_mismatch_rate_pct || 0) >= 5 ? 'warn' : 'ok';
+
+  const fmtUsd = (n) => {
+    if (n == null) return '—';
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}k`;
+    return `$${Math.round(n)}`;
+  };
+
+  const tiles = [
+    {
+      label: 'Cases',
+      value: String(k.total_cases),
+      tone: 'ok',
+      sub:  `${k.completed_cases} disbursed · ${k.in_progress_cases} active · ${k.declined_cases} declined`,
+    },
+    {
+      label: 'Median TAT',
+      value: k.median_tat_days != null ? `${k.median_tat_days}d` : '—',
+      tone: tatTone,
+      sub:  `across ${k.completed_cases} disbursed`,
+    },
+    {
+      label: 'Conformance',
+      value: `${conformPct}%`,
+      tone: conformTone,
+      sub:  `${k.conformant_cases} of ${k.total_cases} conform`,
+    },
+    {
+      label: 'SLA Breaches',
+      value: `${Math.round(k.breach_rate_pct)}%`,
+      tone: breachTone,
+      sub:  `${_pmCountBreaches(d)} of ${k.total_step_executions} executions`,
+    },
+    {
+      label: 'Role Mismatches',
+      value: `${Math.round(k.role_mismatch_rate_pct || 0)}%`,
+      tone: roleTone,
+      sub:  `${k.role_mismatch_total || 0} of ${k.total_step_executions} executions`,
+    },
+    {
+      label: 'Avg Loan',
+      value: fmtUsd(k.avg_loan_usd),
+      tone: 'ok',
+      sub:  `${fmtUsd(k.total_disbursed_usd)} total disbursed`,
+    },
+  ];
+  strip.innerHTML = tiles.map(t => `
+    <div class="pm-kpi pm-kpi-${t.tone}">
+      <div class="pm-kpi-label">${t.label}</div>
+      <div class="pm-kpi-value">${_esc(String(t.value))}</div>
+      <div class="pm-kpi-sub pm-mono">${_esc(t.sub)}</div>
+    </div>
+  `).join('');
+}
+
+function _pmCountBreaches(d) {
+  return (d.activities || []).reduce((s, a) => s + (a.breach_count || 0), 0);
+}
+
+function _pmShorten(s, n = 14) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+/* ── Process Map (SVG DAG) ────────────────────────────────────── */
+function pmRenderMap() {
+  const d = pmState.data; if (!d) return;
+  const svg = document.getElementById('pm-map-svg');
+  if (!svg) return;
+
+  const NODE_W = 168, NODE_H = 64;
+  // Compute viewBox width based on activity positions
+  const maxX = Math.max(...d.activities.map(a => a.x + a.width)) + 80;
+  svg.setAttribute('viewBox', `0 0 ${maxX} 220`);
+
+  // Strip everything except <defs>
+  [...svg.children].forEach(c => { if (c.tagName !== 'defs') svg.removeChild(c); });
+
+  const maxCases = Math.max(1, ...d.edges.map(e => e.cases));
+  const byId = Object.fromEntries(d.activities.map(a => [a.id, a]));
+
+  const xmlns = 'http://www.w3.org/2000/svg';
+  const mkEl = (tag, attrs = {}, text) => {
+    const el = document.createElementNS(xmlns, tag);
+    Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, String(v)));
+    if (text != null) el.textContent = String(text);
+    return el;
+  };
+
+  // Edges
+  d.edges.forEach(e => {
+    const a = byId[e.from]; const b = byId[e.to];
+    if (!a || !b) return;
+    const w = 1 + (e.cases / maxCases) * 7;
+    const colorClass = e.is_slow ? 'pm-edge-red' : e.is_rework ? 'pm-edge-amber' : 'pm-edge-brand';
+    const marker = e.is_slow ? 'url(#pm-arr-slow)' : e.is_rework ? 'url(#pm-arr-rew)' : 'url(#pm-arr)';
+    const ax = a.x + NODE_W;     const ay = a.y + NODE_H / 2;
+    const bx = b.x;              const by = b.y + NODE_H / 2;
+    let path;
+    if (e.is_rework) {
+      path = `M ${a.x} ${a.y + NODE_H / 2} C ${a.x - 60} ${a.y + NODE_H + 30}, ${b.x - 60} ${b.y + NODE_H + 30}, ${bx} ${by}`;
+    } else {
+      const dx = (bx - ax) * 0.35;
+      path = `M ${ax} ${ay} C ${ax + dx} ${ay}, ${bx - dx} ${by}, ${bx} ${by}`;
+    }
+    const g = mkEl('g', { class: 'pm-edge-g' });
+    g.appendChild(mkEl('path', {
+      d: path,
+      class: `pm-edge ${colorClass}${e.is_rework ? ' pm-edge-dashed' : ''}`,
+      'stroke-width': w.toFixed(2),
+      'marker-end': marker,
+      opacity: 0.35 + 0.5 * (e.cases / maxCases),
+    }));
+    // edge label
+    const midX = e.is_rework ? (a.x + b.x) / 2 - 60 : (ax + bx) / 2;
+    const midY = e.is_rework ? (a.y + NODE_H + 28)  : (ay + by) / 2;
+    g.appendChild(mkEl('rect', {
+      x: midX - 30, y: midY - 11, width: 60, height: 22, rx: 4,
+      class: `pm-edge-label-bg ${colorClass}`,
+    }));
+    const med = e.median_transition_hours;
+    const medText = med == null ? '' : (med < 24 ? `${med.toFixed(1)}h` : `${(med / 24).toFixed(1)}d`);
+    g.appendChild(mkEl('text', {
+      x: midX, y: midY - 1, 'text-anchor': 'middle',
+      class: `pm-edge-label-cases ${colorClass}`,
+    }, e.cases));
+    g.appendChild(mkEl('text', {
+      x: midX, y: midY + 9, 'text-anchor': 'middle',
+      class: 'pm-edge-label-time',
+    }, medText));
+    svg.appendChild(g);
+  });
+
+  // Nodes
+  d.activities.forEach(a => {
+    const isSel  = a.id === pmState.selectedActivityId;
+    const isExc  = a.is_exception || a.is_bottleneck;
+    const g = mkEl('g', { transform: `translate(${a.x},${a.y})`, class: 'pm-node-g' });
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', () => {
+      pmState.selectedActivityId = a.id;
+      pmRenderMap();
+      pmHighlightInGraph(a.id, isExc ? 'critical' : 'info');
+    });
+    g.appendChild(mkEl('rect', {
+      x: 0, y: 2, width: NODE_W, height: NODE_H, rx: 10,
+      class: 'pm-node-shadow',
+    }));
+    g.appendChild(mkEl('rect', {
+      x: 0, y: 0, width: NODE_W, height: NODE_H, rx: 10,
+      class: `pm-node ${isSel ? 'pm-node-selected' : ''} ${isExc ? 'pm-node-exception' : ''}`,
+    }));
+    g.appendChild(mkEl('rect', {
+      x: 0, y: 0, width: 4, height: NODE_H, rx: 2,
+      class: isExc ? 'pm-node-bar-red' : 'pm-node-bar-brand',
+    }));
+    g.appendChild(mkEl('text', {
+      x: 14, y: 22, class: 'pm-node-label',
+    }, a.label));
+    g.appendChild(mkEl('text', {
+      x: 14, y: 38, class: 'pm-node-role',
+    }, a.expected_role || ''));
+    // Bottom progress bar
+    const maxCaseCount = Math.max(...d.activities.map(x => x.case_count), 1);
+    g.appendChild(mkEl('rect', {
+      x: 14, y: NODE_H - 14, width: NODE_W - 28, height: 3, rx: 1.5,
+      class: 'pm-node-bar-bg',
+    }));
+    g.appendChild(mkEl('rect', {
+      x: 14, y: NODE_H - 14, width: (NODE_W - 28) * (a.case_count / maxCaseCount), height: 3, rx: 1.5,
+      class: isExc ? 'pm-node-bar-fill-red' : 'pm-node-bar-fill-brand',
+    }));
+    g.appendChild(mkEl('text', {
+      x: NODE_W - 14, y: NODE_H - 18, 'text-anchor': 'end',
+      class: 'pm-node-cases',
+    }, a.case_count));
+
+    // Bottleneck pill
+    if (a.is_bottleneck) {
+      g.appendChild(mkEl('rect', {
+        x: NODE_W - 78, y: -10, width: 70, height: 18, rx: 9,
+        class: 'pm-node-pill-red',
+      }));
+      g.appendChild(mkEl('text', {
+        x: NODE_W - 43, y: 2, 'text-anchor': 'middle',
+        class: 'pm-node-pill-text',
+      }, 'BOTTLENECK'));
+    }
+    svg.appendChild(g);
+  });
+
+  pmRenderInspector();
+}
+
+/* Static lookup mirrors backend's _PM_AI_RECOS pattern. Real "cause" categories
+   aren't in the seed; this is the demo-friendly default. */
+const PM_TOP_CAUSES = {
+  'Application Submission': [
+    { label: 'Incomplete document upload',   pct: 38 },
+    { label: 'Branch hand-off latency',      pct: 27 },
+    { label: 'Missing applicant signature',  pct: 21 },
+    { label: 'System: portal timeout',       pct: 14 },
+  ],
+  'KYC Verification': [
+    { label: 'Sanctions list latency',       pct: 38 },
+    { label: 'PEP review queue',             pct: 28 },
+    { label: 'Manual document re-request',   pct: 22 },
+    { label: 'System: KYC platform lag',     pct: 12 },
+  ],
+  'Credit Check': [
+    { label: 'Bureau API throttling',        pct: 35 },
+    { label: 'Manual risk-grade override',   pct: 30 },
+    { label: 'Awaiting income proof',        pct: 22 },
+    { label: 'System: bureau gateway lag',   pct: 13 },
+  ],
+  'Underwriting Review': [
+    { label: 'Awaiting credit memo',         pct: 42 },
+    { label: 'Senior underwriter availability', pct: 28 },
+    { label: 'Document re-request',          pct: 18 },
+    { label: 'System: workbench lag',        pct: 12 },
+  ],
+  'Approval Decision': [
+    { label: 'Credit committee scheduling',  pct: 40 },
+    { label: 'Wrong-role escalation',        pct: 26 },
+    { label: 'Policy threshold review',      pct: 20 },
+    { label: 'System: workbench lag',        pct: 14 },
+  ],
+  'Disbursement': [
+    { label: 'Core banking batch window',    pct: 45 },
+    { label: 'Beneficiary verification',     pct: 25 },
+    { label: 'Wire-transfer cut-off',        pct: 18 },
+    { label: 'System: core banking lag',     pct: 12 },
+  ],
+  'Post-Disbursement Audit': [
+    { label: 'Audit sample selection',       pct: 36 },
+    { label: 'Documentation completeness',   pct: 30 },
+    { label: 'Audit team capacity',          pct: 22 },
+    { label: 'System: audit trail lag',      pct: 12 },
+  ],
+};
+
+function pmRenderInspector() {
+  const d = pmState.data; if (!d) return;
+  const wrap = document.getElementById('pm-map-inspector');
+  if (!wrap) return;
+  const a = d.activities.find(x => x.id === pmState.selectedActivityId);
+  if (!a) { wrap.innerHTML = '<div class="pm-inspector-empty">Click an activity to inspect</div>'; return; }
+
+  const tone = a.is_bottleneck ? 'bad' : a.is_exception ? 'warn' : 'ok';
+  const toneLabel = a.is_bottleneck ? 'BOTTLENECK' : a.is_exception ? 'EXCEPTION' : 'HEALTHY';
+  const dwellTone = (a.median_dwell_hours && a.sla_hours && a.median_dwell_hours > a.sla_hours) ? 'bad' : 'ok';
+  const reco = d.ai_recommendations?.[a.id] || 'No recommendations available for this step yet.';
+  const causes = PM_TOP_CAUSES[a.id] || [];
+
+  wrap.innerHTML = `
+    <div class="pm-inspector-head">
+      <span class="pm-pill pm-pill-${tone}">${toneLabel}</span>
+      <div class="pm-inspector-title">${_esc(a.label)}</div>
+      <div class="pm-inspector-sub">${a.case_count} cases · ${_esc(a.expected_role || '—')}</div>
+    </div>
+    <div class="pm-inspector-body">
+      <div class="pm-inspector-stats">
+        <div class="pm-inspector-stat">
+          <div class="pm-inspector-stat-val pm-stat-${dwellTone}">${a.median_dwell_hours != null ? a.median_dwell_hours + 'h' : '—'}</div>
+          <div class="pm-inspector-stat-label">Median dwell</div>
+        </div>
+        <div class="pm-inspector-stat">
+          <div class="pm-inspector-stat-val">${a.sla_hours || 0}h</div>
+          <div class="pm-inspector-stat-label">SOP SLA</div>
+        </div>
+      </div>
+      <div class="pm-inspector-block">
+        <div class="section-label" style="margin-bottom:8px">Wait time · per execution</div>
+        ${_pmRenderWaitChart(a)}
+      </div>
+      <div class="pm-inspector-block">
+        <div class="section-label" style="margin-bottom:8px">Top Causes</div>
+        ${_pmRenderCauses(causes)}
+      </div>
+      <div class="pm-inspector-block">
+        <div class="section-label" style="margin-bottom:8px">Reality check</div>
+        <div class="pm-inspector-row"><span>Executions</span><span class="pm-mono">${a.exec_count}</span></div>
+        <div class="pm-inspector-row"><span>SLA breaches</span><span class="pm-mono ${a.breach_count ? 'pm-text-red' : ''}">${a.breach_count}</span></div>
+        <div class="pm-inspector-row"><span>Wrong-role events</span><span class="pm-mono ${a.role_mismatch_count ? 'pm-text-amber' : ''}">${a.role_mismatch_count}</span></div>
+        <div class="pm-inspector-row"><span>Expected system</span><span class="pm-mono pm-text-dim">${_esc(a.expected_system || '—')}</span></div>
+      </div>
+      <div class="pm-inspector-reco">
+        <div class="pm-reco-head">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5L18.2 21 12 16.5 5.8 21l2.39-7.14L2 9.36h7.61z"/></svg>
+          AI Recommendation
+        </div>
+        <div class="pm-reco-body">${_esc(reco)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function _pmRenderWaitChart(a) {
+  const samples = a.dwell_samples || [];
+  const sla = a.sla_hours || 0;
+  if (!samples.length) {
+    return '<div class="pm-wait-empty pm-mono">No completed executions yet.</div>';
+  }
+  const maxV = Math.max(...samples, sla || 0);
+  const W = 280, H = 70, pad = 4;
+  const barW = Math.max(4, Math.floor((W - pad * 2) / samples.length) - 1);
+  const bars = samples.map((v, i) => {
+    const h = Math.max(2, (v / maxV) * (H - 12));
+    const x = pad + i * (barW + 1);
+    const y = H - h;
+    const cls = (sla && v > sla) ? 'pm-wait-bar-red' : (sla && v > sla * 0.85) ? 'pm-wait-bar-amber' : 'pm-wait-bar-brand';
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="1" class="${cls}"></rect>`;
+  }).join('');
+  const slaLineY = sla ? H - (sla / maxV) * (H - 12) : null;
+  const slaLine = slaLineY != null
+    ? `<line x1="0" x2="${W}" y1="${slaLineY}" y2="${slaLineY}" class="pm-wait-sla-line"/>
+       <text x="${W - 2}" y="${slaLineY - 2}" text-anchor="end" class="pm-wait-sla-label">SLA ${sla}h</text>`
+    : '';
+  return `<svg viewBox="0 0 ${W} ${H}" class="pm-wait-chart">${bars}${slaLine}</svg>`;
+}
+
+function _pmRenderCauses(causes) {
+  if (!causes.length) {
+    return '<div class="pm-causes-empty pm-mono">No cause data for this step.</div>';
+  }
+  return `<div class="pm-causes-list">${
+    causes.map(c => `
+      <div class="pm-cause-row">
+        <span class="pm-cause-label">${_esc(c.label)}</span>
+        <div class="pm-cause-bar-track"><div class="pm-cause-bar-fill" style="width:${c.pct}%"></div></div>
+        <span class="pm-cause-pct pm-mono">${c.pct}%</span>
+      </div>
+    `).join('')
+  }</div>`;
+}
+
+/* Slider strip — visual only. Reflects the ratio of activities/connections in
+   the current view (always full 9/9 / 12/12 etc). Dragging is a no-op for now. */
+function pmRenderSliderStrip() {
+  const d = pmState.data; if (!d) return;
+  const acts = d.activities.length;
+  const conns = d.edges.length;
+  const setSlider = (fillId, thumbId, valId, frac, valStr) => {
+    const fill  = document.getElementById(fillId);
+    const thumb = document.getElementById(thumbId);
+    const valEl = document.getElementById(valId);
+    if (fill)  fill.style.width  = `${Math.round(frac * 100)}%`;
+    if (thumb) thumb.style.left  = `${Math.round(frac * 100)}%`;
+    if (valEl) valEl.textContent = valStr;
+  };
+  setSlider('pm-slider-act-fill',  'pm-slider-act-thumb',  'pm-slider-act-val',  1.0, `${acts}/${acts}`);
+  setSlider('pm-slider-conn-fill', 'pm-slider-conn-thumb', 'pm-slider-conn-val', 1.0, `${conns}/${conns}`);
+}
+
+/* ── Variants ────────────────────────────────────────────────── */
+function pmRenderVariants() {
+  const d = pmState.data; if (!d) return;
+  const list = document.getElementById('pm-var-list');
+  const detail = document.getElementById('pm-var-detail');
+  const count = document.getElementById('pm-var-list-count');
+  if (!list || !detail) return;
+  if (count) count.textContent = String(d.variants.length);
+
+  list.innerHTML = d.variants.map(v => {
+    const isSel = v.id === pmState.selectedVariantId;
+    const tone = v.is_conformant ? 'ok' : 'bad';
+    const toneLabel = v.is_conformant ? 'CONFORM' : 'DEVIATION';
+    const stepsHtml = v.steps.map((s, i) => `
+      <span class="pm-var-step">${_esc(_pmShorten(s, 18))}</span>${i < v.steps.length - 1 ? '<span class="pm-var-step-sep">›</span>' : ''}
+    `).join('');
+    const conformInfo = v.conformant_count !== v.case_count
+      ? `<span class="pm-var-note">· ${v.conformant_count}/${v.case_count} conform</span>`
+      : '';
+    return `
+      <button class="pm-var-card ${isSel ? 'pm-var-card-selected' : ''}" data-variant-id="${v.id}">
+        <div class="pm-var-row1">
+          <span class="pm-var-rank">#${v.rank}</span>
+          <span class="pm-var-cases pm-mono">${v.case_count}</span>
+          <span class="pm-var-freq pm-mono">cases · ${v.frequency_pct}%</span>
+          <span class="pm-pill pm-pill-${tone} pm-var-pill">${toneLabel}</span>
+        </div>
+        <div class="pm-var-bar"><div class="pm-var-bar-fill pm-var-bar-${tone}" style="width:${v.frequency_pct}%"></div></div>
+        <div class="pm-var-steps">${stepsHtml}</div>
+        <div class="pm-var-meta">
+          <span class="pm-mono pm-var-tat">${v.median_tat_days != null ? v.median_tat_days + 'd median' : '— median'}</span>
+          ${conformInfo}
+          ${v.deviation_note ? `<span class="pm-var-note">· ${_esc(v.deviation_note)}</span>` : ''}
+        </div>
+      </button>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.pm-var-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      pmState.selectedVariantId = btn.getAttribute('data-variant-id');
+      pmRenderVariants();
+    });
+  });
+
+  // Detail panel
+  const v = d.variants.find(x => x.id === pmState.selectedVariantId) || d.variants[0];
+  if (!v) { detail.innerHTML = ''; return; }
+  const baseline = d.variants[0];
+  const tone = v.is_conformant ? 'ok' : 'bad';
+  const cmp = (a, b) => {
+    if (a == null || b == null) return '—';
+    const diff = a - b;
+    if (diff === 0) return 'baseline';
+    return (diff > 0 ? '+' : '') + diff.toFixed(1);
+  };
+  // Build edge transition map from data.edges for transition-hour annotations
+  const edgeMap = {};
+  d.edges.forEach(e => { edgeMap[`${e.from}|${e.to}`] = e.median_transition_hours; });
+
+  const swimHtml = v.steps.map((s, i) => {
+    const transition = i < v.steps.length - 1 ? (edgeMap[`${s}|${v.steps[i + 1]}`]) : null;
+    const transText = transition == null ? '' : (transition < 24 ? `${transition.toFixed(1)}h` : `${(transition / 24).toFixed(1)}d`);
+    return `
+      <div class="pm-swim-step">
+        <div class="pm-swim-step-num">STEP ${String(i + 1).padStart(2, '0')}</div>
+        <div class="pm-swim-step-name">${_esc(s)}</div>
+      </div>
+      ${i < v.steps.length - 1 ? `
+        <div class="pm-swim-arrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="pm-swim-arrow-time">${transText}</span>
+        </div>` : ''}
+    `;
+  }).join('');
+
+  detail.innerHTML = `
+    <div class="pm-var-detail-head">
+      <span class="pm-var-detail-title">Variant ${v.rank} detail</span>
+      <span class="pm-pill pm-pill-${tone}">${v.is_conformant ? 'Conformant' : 'Deviation'}</span>
+    </div>
+    <div class="pm-card pm-swim-card">
+      <div class="pm-swim-head">
+        <div>
+          <div class="section-label">Execution path</div>
+          <div class="pm-mono pm-swim-meta">${v.case_count} cases · median ${v.median_tat_days != null ? v.median_tat_days + 'd' : '—'}</div>
+        </div>
+        <div class="pm-swim-stats">
+          <div><span class="pm-mono pm-swim-stat-val">${v.steps.length}</span><span class="pm-mono pm-swim-stat-lbl">steps</span></div>
+          <div><span class="pm-mono pm-swim-stat-val">${v.median_tat_days != null ? v.median_tat_days + 'd' : '—'}</span><span class="pm-mono pm-swim-stat-lbl">p50</span></div>
+        </div>
+      </div>
+      <div class="pm-swim-row">${swimHtml}</div>
+    </div>
+    <div class="pm-card pm-cmp-card">
+      <div class="section-label" style="margin-bottom:10px">Comparison vs Variant #1 (most frequent)</div>
+      <div class="pm-cmp-grid">
+        <div class="pm-cmp-tile">
+          <div class="pm-cmp-lbl">Cases</div>
+          <div class="pm-mono pm-cmp-val">${v.case_count}</div>
+          <div class="pm-mono pm-cmp-diff">${v.id === baseline.id ? 'baseline' : cmp(v.case_count, baseline.case_count) + ' vs base'}</div>
+        </div>
+        <div class="pm-cmp-tile">
+          <div class="pm-cmp-lbl">Median TAT</div>
+          <div class="pm-mono pm-cmp-val">${v.median_tat_days != null ? v.median_tat_days + 'd' : '—'}</div>
+          <div class="pm-mono pm-cmp-diff">${v.id === baseline.id ? 'baseline' : cmp(v.median_tat_days, baseline.median_tat_days) + 'd'}</div>
+        </div>
+        <div class="pm-cmp-tile">
+          <div class="pm-cmp-lbl">Steps</div>
+          <div class="pm-mono pm-cmp-val">${v.steps.length}</div>
+          <div class="pm-mono pm-cmp-diff">${v.id === baseline.id ? 'baseline' : (v.steps.length - baseline.steps.length > 0 ? '+' : '') + (v.steps.length - baseline.steps.length)}</div>
+        </div>
+        <div class="pm-cmp-tile">
+          <div class="pm-cmp-lbl">Conformance</div>
+          <div class="pm-mono pm-cmp-val pm-text-${tone}">${v.is_conformant ? '100%' : '0%'}</div>
+          <div class="pm-mono pm-cmp-diff">${v.is_conformant ? 'pass' : 'breach'}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── Conformance tab ─────────────────────────────────────────── */
+function pmRenderConformance() {
+  const d = pmState.data; if (!d) return;
+  const wrap = document.getElementById('pm-conf-wrap');
+  if (!wrap) return;
+  const c = d.conformance;
+  const fitnessTone = c.fitness >= 0.80 ? 'ok' : c.fitness >= 0.60 ? 'warn' : 'bad';
+  const fitnessLabel = c.fitness >= 0.80 ? 'HEALTHY' : c.fitness >= 0.60 ? 'AT RISK' : 'CRITICAL';
+
+  const patternsHtml = c.deviation_patterns.slice(0, 6).map(p => `
+    <div class="pm-dev-pattern pm-dev-pattern-${p.severity}">
+      <div class="pm-mono pm-dev-pattern-count">${p.case_count}</div>
+      <div class="pm-dev-pattern-label">${_esc(p.label)}</div>
+    </div>
+  `).join('');
+
+  const casesHtml = c.deviating_cases_top.slice(0, 8).map(row => {
+    const tone = PM_SEV_TONE[row.severity] || 'warn';
+    const shortId = row.case_id.split('-')[0] || row.case_id.slice(0, 8);
+    return `
+      <div class="pm-conf-case-row" data-step="${_esc(row.deviation.replace(/^(SLA-breached|Wrong-role|Skipped) /, ''))}">
+        <span class="pm-mono pm-conf-case-id">${_esc(shortId)}</span>
+        <span class="pm-conf-case-applicant">${_esc(row.applicant || '—')}</span>
+        <span class="pm-conf-case-dev">${_esc(row.deviation)}</span>
+        <span class="pm-mono pm-conf-case-date">${_esc(row.started_at || '—')}</span>
+        <span class="pm-mono pm-conf-case-tat">${row.tat_days != null ? row.tat_days + 'd' : '—'}</span>
+        <span class="pm-pill pm-pill-${tone} pm-conf-case-sev">${PM_SEV_LABEL[row.severity]}</span>
+      </div>
+    `;
+  }).join('') || '<div class="pm-conf-empty">No deviating cases — all 13 applications conform.</div>';
+
+  wrap.innerHTML = `
+    <div class="pm-conf-top">
+      <div class="pm-card pm-fitness-card">
+        <div class="section-label">Fitness</div>
+        <div class="pm-fitness-row">
+          <div class="pm-mono pm-fitness-val pm-text-${fitnessTone}">${c.fitness.toFixed(2)}</div>
+          <span class="pm-pill pm-pill-${fitnessTone}">${fitnessLabel}</span>
+        </div>
+        <div class="pm-fitness-sub">${c.conformant_cases} of ${d.kpis.total_cases} cases conform to the SOP-defined process. ${c.deviating_cases} deviation${c.deviating_cases === 1 ? '' : 's'} across ${c.deviation_patterns.length} pattern${c.deviation_patterns.length === 1 ? '' : 's'}.</div>
+      </div>
+      <div class="pm-card pm-dev-patterns-card">
+        <div class="section-label">Deviation patterns</div>
+        <div class="pm-dev-patterns-grid">${patternsHtml || '<div class="pm-conf-empty">No deviation patterns detected.</div>'}</div>
+      </div>
+    </div>
+    <div class="pm-card pm-conf-cases-card">
+      <div class="section-label" style="margin-bottom:12px">Top deviating cases</div>
+      <div class="pm-conf-case-head">
+        <span>Case ID</span>
+        <span>Applicant</span>
+        <span>Deviation</span>
+        <span>Started</span>
+        <span>TAT</span>
+        <span>Severity</span>
+      </div>
+      <div class="pm-conf-case-list">${casesHtml}</div>
+    </div>
+  `;
+
+  wrap.querySelectorAll('.pm-conf-case-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const stepName = row.getAttribute('data-step') || '';
+      pmHighlightInGraph(stepName, 'critical');
+    });
+  });
+}
+
+/* ── Tab switching ───────────────────────────────────────────── */
+document.querySelectorAll('.pm-tab').forEach(btn => {
+  btn.addEventListener('click', () => pmSwitchTab(btn.getAttribute('data-pm-tab')));
+});
+
+function pmSwitchTab(tab) {
+  if (!tab) return;
+  pmState.activeTab = tab;
+  document.querySelectorAll('.pm-tab').forEach(b => {
+    b.classList.toggle('pm-tab-active', b.getAttribute('data-pm-tab') === tab);
+  });
+  ['map', 'variants', 'conformance'].forEach(t => {
+    const panel = document.getElementById(`pm-tab-${t}`);
+    if (panel) {
+      panel.hidden = (t !== tab);
+      panel.classList.toggle('pm-tab-panel-active', t === tab);
+    }
+  });
+}
+
+/* ── Topbar buttons ──────────────────────────────────────────── */
+const _btnPmRefresh = document.getElementById('btn-pm-refresh');
+if (_btnPmRefresh) {
+  _btnPmRefresh.addEventListener('click', async () => {
+    pmState.data = null;
+    await loadProcessMining();
+  });
+}
+const _btnPmFilter      = document.getElementById('btn-pm-filter');
+const _pmFilterPopover  = document.getElementById('pm-filter-popover');
+const _pmFilterLoanWrap = document.getElementById('pm-filter-loan-types');
+const _pmFilterStatWrap = document.getElementById('pm-filter-statuses');
+const _pmFilterBadge    = document.getElementById('pm-filter-badge');
+const _pmFilterApply    = document.getElementById('pm-filter-apply');
+const _pmFilterClear    = document.getElementById('pm-filter-clear');
+
+function _pmRenderFilterOptions() {
+  const opts = pmState.data?.filter_options;
+  if (!opts || !_pmFilterLoanWrap || !_pmFilterStatWrap) return;
+  const mk = (val, group, sel) => `
+    <label class="pm-filter-opt">
+      <input type="checkbox" data-group="${group}" value="${_esc(val)}" ${sel ? 'checked' : ''}/>
+      <span>${_esc(val)}</span>
+    </label>`;
+  _pmFilterLoanWrap.innerHTML = opts.loan_types.map(t =>
+    mk(t, 'loan_types', pmState.filters.loan_types.includes(t))
+  ).join('');
+  _pmFilterStatWrap.innerHTML = opts.statuses.map(s =>
+    mk(s, 'statuses', pmState.filters.statuses.includes(s))
+  ).join('');
+}
+
+function _pmUpdateFilterBadge() {
+  if (!_pmFilterBadge) return;
+  const n = pmState.filters.loan_types.length + pmState.filters.statuses.length;
+  if (n > 0) { _pmFilterBadge.textContent = String(n); _pmFilterBadge.hidden = false; }
+  else        { _pmFilterBadge.hidden = true; }
+}
+
+if (_btnPmFilter && _pmFilterPopover) {
+  _btnPmFilter.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!pmState.data) return;
+    _pmRenderFilterOptions();
+    _pmFilterPopover.hidden = !_pmFilterPopover.hidden;
+  });
+  // close on outside click
+  document.addEventListener('click', e => {
+    if (_pmFilterPopover.hidden) return;
+    if (!_pmFilterPopover.contains(e.target) && e.target !== _btnPmFilter) {
+      _pmFilterPopover.hidden = true;
+    }
+  });
+}
+
+if (_pmFilterApply) {
+  _pmFilterApply.addEventListener('click', async () => {
+    const loanTypes = [..._pmFilterLoanWrap.querySelectorAll('input[data-group="loan_types"]:checked')].map(i => i.value);
+    const statuses  = [..._pmFilterStatWrap.querySelectorAll('input[data-group="statuses"]:checked')].map(i => i.value);
+    pmState.filters = { loan_types: loanTypes, statuses };
+    pmState.data = null;
+    _pmFilterPopover.hidden = true;
+    _pmUpdateFilterBadge();
+    await loadProcessMining();
+  });
+}
+
+if (_pmFilterClear) {
+  _pmFilterClear.addEventListener('click', async () => {
+    pmState.filters = { loan_types: [], statuses: [] };
+    pmState.data = null;
+    _pmFilterPopover.hidden = true;
+    _pmUpdateFilterBadge();
+    await loadProcessMining();
+  });
+}
+const _btnPmOptimise = document.getElementById('btn-pm-optimise');
+const _pmOverlay     = document.getElementById('pm-optimise-overlay');
+const _pmOverlayBody = document.getElementById('pm-optimise-body');
+const _pmOverlayClose = document.getElementById('pm-optimise-close');
+
+function pmShowOverlay(html) {
+  if (!_pmOverlay || !_pmOverlayBody) return;
+  _pmOverlayBody.innerHTML = html;
+  _pmOverlay.hidden = false;
+}
+function pmHideOverlay() {
+  if (_pmOverlay) _pmOverlay.hidden = true;
+}
+if (_pmOverlayClose) _pmOverlayClose.addEventListener('click', pmHideOverlay);
+if (_pmOverlay) _pmOverlay.addEventListener('click', e => {
+  if (e.target === _pmOverlay) pmHideOverlay();
+});
+
+if (_btnPmOptimise) {
+  _btnPmOptimise.addEventListener('click', async () => {
+    if (!currentGraphId) return;
+    pmShowOverlay('<div class="pm-optimise-loading"><div class="spinner-ring spinner-ring-sm"></div><span>Asking Haiku for optimisation suggestions…</span></div>');
+    _btnPmOptimise.disabled = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/process-mining/${currentGraphId}/optimise`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      const data = await res.json();
+      pmShowOverlay(_pmRenderOptimiseResult(data));
+    } catch (e) {
+      pmShowOverlay(`<div class="pm-optimise-error">Optimise failed:<br><span class="pm-mono">${_esc(e.message)}</span></div>`);
+    } finally {
+      _btnPmOptimise.disabled = false;
+    }
+  });
+}
+
+function _pmRenderOptimiseResult(data) {
+  const recs = data.recommendations || [];
+  const summary = data.summary || '';
+  const effortClass = (e) => e === 'low' ? 'pm-eff-low' : e === 'high' ? 'pm-eff-high' : 'pm-eff-med';
+  const items = recs.map((r, i) => `
+    <div class="pm-optimise-card">
+      <div class="pm-optimise-card-head">
+        <span class="pm-optimise-num pm-mono">${String(i + 1).padStart(2, '0')}</span>
+        <span class="pm-optimise-card-title">${_esc(r.title || '')}</span>
+        <span class="pm-optimise-effort ${effortClass(r.effort)}">${_esc(r.effort || '—')} effort</span>
+      </div>
+      <div class="pm-optimise-card-rat">${_esc(r.rationale || '')}</div>
+      <div class="pm-optimise-card-meta">
+        <span class="pm-optimise-impact"><span class="pm-optimise-meta-lbl">Impact:</span> ${_esc(r.expected_impact || '—')}</span>
+        ${r.target_step ? `<span class="pm-optimise-target"><span class="pm-optimise-meta-lbl">Step:</span> ${_esc(r.target_step)}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+  return `
+    <div class="pm-optimise-summary">${_esc(summary)}</div>
+    <div class="pm-optimise-list">${items}</div>
+    <div class="pm-optimise-footer pm-mono">Suggestions cached for this graph — refresh to recompute via the Optimise button after re-uploading.</div>
+  `;
+}
+
+/* ── Map activity → graph node + highlight ───────────────────── */
+function pmHighlightInGraph(stepName, severity) {
+  if (!stepName || !currentGraph) return;
+  const target = stepName.trim().toLowerCase();
+  const ids = currentGraph.nodes
+    .filter(n => (n.type === 'Process') && n.label && (
+      n.label.trim().toLowerCase() === target ||
+      n.label.toLowerCase().includes(target) ||
+      target.includes(n.label.toLowerCase())
+    ))
+    .map(n => n.id);
+  if (ids.length && typeof highlightNodes === 'function') {
+    highlightNodes(ids, severity || 'info');
+    const banner = document.getElementById('gapHighlightBanner');
+    const src    = document.getElementById('gapBannerSource');
+    if (banner && src) {
+      src.textContent = `Process Mining: ${stepName}`;
+      banner.hidden = false;
+    }
+  }
 }
 
