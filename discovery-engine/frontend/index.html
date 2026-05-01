@@ -174,7 +174,6 @@
             </div>
 
             <ul class="file-list" id="file-list"></ul>
-            <div id="upload-char-counter" class="upload-char-counter" hidden></div>
 
             <button id="btn-extract" class="btn-primary" disabled>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px">
@@ -486,26 +485,69 @@
 
   </div><!-- /main-column -->
 
-  <!-- ── Right detail panel ── -->
+  <!-- ── Right inspector panel (always visible in graph view) ── -->
   <aside class="detail-panel" id="detail-panel">
-    <div class="detail-inner">
+
+    <!-- Empty state — shown until a node is selected -->
+    <div class="detail-empty" id="detail-empty">
+      <div class="detail-empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <div class="detail-empty-title">Inspector</div>
+      <div class="detail-empty-sub">Click a node in the graph to see its details, connections, and source quote.</div>
+    </div>
+
+    <!-- Selected-node content -->
+    <div class="detail-inner" id="detail-inner" hidden>
       <div class="detail-header">
         <div class="detail-type-badge" id="detail-badge"></div>
-        <button class="icon-btn" id="close-detail" title="Close">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+        <div class="detail-header-actions">
+          <button class="icon-btn" id="detail-focus" title="Center in graph">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+          <button class="icon-btn" id="close-detail" title="Deselect">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <h2 class="detail-title" id="detail-title"></h2>
       <p class="detail-desc" id="detail-desc"></p>
+
+      <!-- Stat cards: incoming + outgoing edge counts -->
+      <div class="detail-stats" id="detail-stats">
+        <div class="detail-stat">
+          <div class="detail-stat-val ds-mono-num" id="detail-stat-in">0</div>
+          <div class="detail-stat-lbl">Incoming</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-val ds-mono-num" id="detail-stat-out">0</div>
+          <div class="detail-stat-lbl">Outgoing</div>
+        </div>
+      </div>
+
+      <!-- Connections list -->
+      <div class="detail-section" id="detail-connections-wrap" hidden>
+        <div class="detail-section-label">Connections</div>
+        <ul class="detail-connections" id="detail-connections"></ul>
+      </div>
+
+      <!-- Sources (filenames) -->
       <div class="detail-sources-row" id="detail-sources-row" hidden>
         <span class="detail-sources-label">Sources</span>
         <span class="detail-sources-value" id="detail-sources-value"></span>
       </div>
+
+      <!-- Source quote -->
       <div class="detail-source-block">
-        <div class="section-label">Source Text</div>
+        <div class="detail-section-label">Source Text</div>
         <blockquote id="detail-source"></blockquote>
+        <div class="detail-source-cite" id="detail-source-cite"></div>
       </div>
     </div>
   </aside>

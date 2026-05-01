@@ -324,6 +324,10 @@ function switchView(view) {
   document.getElementById('workflows-panel-view').hidden  = (view !== 'workflows');
   document.getElementById('object-model-panel').hidden    = (view !== 'object-model');
 
+  // Inspector panel is part of the Knowledge Graph 3-col layout — only visible there.
+  const inspector = document.getElementById('detail-panel');
+  if (inspector) inspector.hidden = (view !== 'graph');
+
   const pct = PANEL_RATIOS[view] ?? 35;
   const panel = document.querySelector('.upload-panel');
   panel.style.flex = `0 0 ${pct}%`;
@@ -639,8 +643,13 @@ function renderGraph(graph) {
   });
 }
 
-/* ── Detail panel ── */
+/* ── Inspector panel ────────────────────────────────────────────────────── */
 function showDetail(data, kind) {
+  const empty = document.getElementById('detail-empty');
+  const inner = document.getElementById('detail-inner');
+  if (empty) empty.hidden = true;
+  if (inner) inner.hidden = false;
+
   if (kind === 'node') {
     detailBadge.textContent = data.type;
     detailBadge.className   = `detail-type-badge badge-${data.type}`;
@@ -648,11 +657,55 @@ function showDetail(data, kind) {
     detailBadge.textContent = data.label;
     detailBadge.className   = 'detail-type-badge badge-Edge';
   }
-  detailTitle.textContent  = data.label;
-  detailDesc.textContent   = data.description || '—';
-  detailSource.textContent = data.source_text  || '—';
+  detailTitle.textContent = data.label;
+  detailDesc.textContent  = data.description || '—';
 
-  // Sources row — only shown when the node carries source filenames.
+  // Stat cards + connections list — only meaningful for nodes
+  const statIn   = document.getElementById('detail-stat-in');
+  const statOut  = document.getElementById('detail-stat-out');
+  const connWrap = document.getElementById('detail-connections-wrap');
+  const connList = document.getElementById('detail-connections');
+  if (kind === 'node' && currentGraph?.edges) {
+    const incoming = currentGraph.edges.filter(e => e.target === data.id);
+    const outgoing = currentGraph.edges.filter(e => e.source === data.id);
+    if (statIn)  statIn.textContent  = incoming.length;
+    if (statOut) statOut.textContent = outgoing.length;
+    const total = incoming.length + outgoing.length;
+    if (connList && connWrap) {
+      connList.innerHTML = '';
+      const labelOf = id => (currentGraph.nodes || []).find(n => n.id === id)?.label || id;
+      const arrow = '<svg class="detail-conn-arrow {DIR}" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+      incoming.slice(0, 5).forEach(e => {
+        const li = document.createElement('li');
+        li.className = 'detail-conn-item';
+        li.innerHTML = `${arrow.replace('{DIR}', 'in')}<span class="detail-conn-label">${_esc(labelOf(e.source))}</span><span class="detail-conn-edge">${_esc(e.label || '')}</span>`;
+        li.addEventListener('click', () => focusNode(e.source));
+        connList.appendChild(li);
+      });
+      outgoing.slice(0, 5).forEach(e => {
+        const li = document.createElement('li');
+        li.className = 'detail-conn-item';
+        li.innerHTML = `${arrow.replace('{DIR}', 'out')}<span class="detail-conn-label">${_esc(labelOf(e.target))}</span><span class="detail-conn-edge">${_esc(e.label || '')}</span>`;
+        li.addEventListener('click', () => focusNode(e.target));
+        connList.appendChild(li);
+      });
+      connWrap.hidden = total === 0;
+    }
+  } else {
+    if (statIn)  statIn.textContent  = '—';
+    if (statOut) statOut.textContent = '—';
+    if (connWrap) connWrap.hidden = true;
+  }
+
+  // Source quote + cite
+  detailSource.textContent = data.source_text || '—';
+  const cite = document.getElementById('detail-source-cite');
+  if (cite) {
+    const srcs = (kind === 'node' && Array.isArray(data.sources)) ? data.sources : [];
+    cite.textContent = srcs.length ? `from ${srcs.join(', ')}` : '';
+  }
+
+  // Sources filename row
   const sRow = document.getElementById('detail-sources-row');
   const sVal = document.getElementById('detail-sources-value');
   if (sRow && sVal) {
@@ -664,11 +717,27 @@ function showDetail(data, kind) {
       sRow.hidden = true;
     }
   }
-  detailPanel.classList.add('open');
 }
 
-function closeDetailPanel() { detailPanel.classList.remove('open'); }
+function _esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+function closeDetailPanel() {
+  const empty = document.getElementById('detail-empty');
+  const inner = document.getElementById('detail-inner');
+  if (empty) empty.hidden = false;
+  if (inner) inner.hidden = true;
+}
 closeDetail.addEventListener('click', closeDetailPanel);
+
+const _detailFocusBtn = document.getElementById('detail-focus');
+if (_detailFocusBtn) {
+  _detailFocusBtn.addEventListener('click', () => {
+    const id = (network && network.getSelectedNodes && network.getSelectedNodes()[0]) || null;
+    if (id) focusNode(id);
+  });
+}
 
 /* ── Object model ── */
 const omLoading = document.getElementById('om-loading');
