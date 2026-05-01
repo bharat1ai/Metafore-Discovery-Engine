@@ -763,7 +763,22 @@ function _renderErdEntities(jsonSchema) {
   const defs  = jsonSchema?.$defs || jsonSchema?.definitions || {};
   const names = Object.keys(defs);
   if (!names.length) {
-    erdEntities.innerHTML = '<p class="erd-empty-msg">No entity definitions found in schema.</p>';
+    erdEntities.innerHTML = `
+      <div class="erd-empty-msg">
+        <div class="erd-empty-icon">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+            <line x1="10" y1="6.5" x2="14" y2="6.5"/>
+            <line x1="10" y1="17.5" x2="14" y2="17.5"/>
+            <line x1="6.5" y1="10" x2="6.5" y2="14"/>
+          </svg>
+        </div>
+        <div class="erd-empty-title">No entity diagram available</div>
+        <div class="erd-empty-sub">The model returned a flat schema. Try regenerating, or check the JSON Schema tab for the raw output.</div>
+      </div>`;
     return;
   }
 

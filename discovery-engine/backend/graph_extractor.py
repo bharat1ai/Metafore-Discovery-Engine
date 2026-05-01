@@ -280,13 +280,48 @@ NLQ_TOOL = {
 
 OBJECT_MODEL_TOOL = {
     "name": "generate_object_model",
-    "description": "Generate Pydantic v2 models and JSON Schema from a knowledge graph.",
+    "description": "Generate Pydantic v2 models and a structured BRD-format JSON Schema from a knowledge graph.",
     "input_schema": {
         "type": "object",
         "properties": {
             "pydantic_code": {"type": "string", "description": "Complete Python file with Pydantic v2 models"},
-            "json_schema":   {"type": "object", "description": "JSON Schema object for the domain model"},
-            "summary":       {"type": "string", "description": "2-3 sentence explanation of the model"},
+            "json_schema": {
+                "type": "object",
+                "description": "BRD-format JSON Schema with entities and relationships arrays — used to render the ERD.",
+                "properties": {
+                    "entities": {
+                        "type": "array",
+                        "description": "Every domain entity, in the same order as the Pydantic classes.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name":   {"type": "string", "description": "Entity name in snake_case (e.g. loan_application)"},
+                                "fields": {
+                                    "type": "array",
+                                    "description": "All fields of this entity. Must start with id (UUID, Primary Key) and include created_at.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name":        {"type": "string", "description": "Field name, snake_case"},
+                                            "type":        {"type": "string", "description": "Pydantic-style type (e.g. UUID, datetime, str, int, MyEnum)"},
+                                            "constraints": {"type": "string", "description": "Constraint hint: 'Primary Key', 'Foreign Key → other_entity', 'Not Null', 'AUDIT ONLY – no relationship', or empty"},
+                                        },
+                                        "required": ["name", "type"],
+                                    },
+                                },
+                            },
+                            "required": ["name", "fields"],
+                        },
+                    },
+                    "relationships": {
+                        "type": "array",
+                        "description": "Each relationship as a string in EXACT format: 'parent_entity (parent) → child_entity (child) via child_entity.fk_col = parent_entity.id'",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["entities", "relationships"],
+            },
+            "summary": {"type": "string", "description": "2-3 sentence explanation of the model"},
         },
         "required": ["pydantic_code", "json_schema", "summary"],
     },
