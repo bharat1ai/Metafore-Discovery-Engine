@@ -71,6 +71,17 @@ def put(doc_hash: str | None, feature: str, value: Any) -> None:
         _save()
 
 
+def invalidate(doc_hash: str | None, feature: str) -> None:
+    """Remove a single (doc_hash, feature) entry. No-op if missing."""
+    if not doc_hash or feature not in _FEATURES:
+        return
+    with _lock:
+        bucket = _cache.get(doc_hash)
+        if bucket and feature in bucket:
+            bucket.pop(feature, None)
+            _save()
+
+
 def stats() -> dict:
     """Return a summary of what's cached. Used by /api/health."""
     with _lock:

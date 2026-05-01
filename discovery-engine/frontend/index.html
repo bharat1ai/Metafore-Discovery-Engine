@@ -466,16 +466,6 @@
               <!-- populated by JS after upload -->
             </div>
 
-            <div class="conf-or-divider">or</div>
-            <button id="btn-conf-live-data" class="conf-live-btn" disabled>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <ellipse cx="12" cy="5" rx="9" ry="3"/>
-                <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
-                <path d="M3 12a9 3 0 0 0 18 0"/>
-              </svg>
-              <span>Use live operational data instead</span>
-            </button>
-
             <button id="btn-run-conformance" class="btn-primary conf-run-btn" disabled>
               Run Audit Check →
             </button>
@@ -505,9 +495,23 @@
         <!-- Object Model view -->
         <div id="object-model-panel" hidden>
           <div class="om-topbar">
-            <div>
-              <div class="section-label" style="margin-bottom:4px">Generated Output</div>
+            <div class="om-topbar-left">
               <span class="om-title">Object Model</span>
+              <span class="om-meta pm-mono" id="om-meta">—</span>
+            </div>
+            <div class="om-topbar-right" id="om-topbar-actions" hidden>
+              <button class="btn-ghost-pm" id="btn-om-jump-pydantic" title="Jump to Pydantic models">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Pydantic
+              </button>
+              <button class="btn-ghost-pm" id="btn-om-jump-schema" title="Jump to JSON Schema">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                JSON Schema
+              </button>
+              <button class="btn-primary-pm" id="btn-om-regenerate" title="Re-run object model generation against the current graph">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Regenerate
+              </button>
             </div>
           </div>
           <!-- Loading state -->
@@ -523,12 +527,18 @@
 
           <p class="model-summary" id="model-summary"></p>
           <div class="modal-tabs om-tabs" id="om-tabs" hidden>
-            <button class="tab active" data-tab="pydantic">Pydantic Models</button>
+            <button class="tab active" data-tab="diagram">Entity Diagram</button>
+            <button class="tab" data-tab="pydantic">Pydantic</button>
             <button class="tab" data-tab="schema">JSON Schema</button>
-            <button class="tab" data-tab="diagram">Entity Diagram</button>
           </div>
           <div class="modal-body om-body" id="om-body" hidden>
-            <div class="tab-content" id="tab-pydantic">
+            <div class="tab-content" id="tab-diagram">
+              <div class="erd-container" id="erd-container">
+                <svg class="erd-svg" id="erd-svg"></svg>
+                <div class="erd-entities" id="erd-entities"></div>
+              </div>
+            </div>
+            <div class="tab-content hidden" id="tab-pydantic">
               <div class="copy-row">
                 <button class="btn-copy" id="copy-pydantic">Copy</button>
               </div>
@@ -539,12 +549,6 @@
                 <button class="btn-copy" id="copy-schema">Copy</button>
               </div>
               <pre id="schema-code"></pre>
-            </div>
-            <div class="tab-content hidden" id="tab-diagram">
-              <div class="erd-container" id="erd-container">
-                <svg class="erd-svg" id="erd-svg"></svg>
-                <div class="erd-entities" id="erd-entities"></div>
-              </div>
             </div>
           </div>
         </div><!-- /object-model-panel -->
