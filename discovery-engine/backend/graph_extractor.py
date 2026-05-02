@@ -911,7 +911,7 @@ def generate_object_model(graph: dict) -> dict:
     )
     compact = f"NODES:\n{node_lines}\n\nEDGES:\n{edge_lines}"
     prompt = OBJECT_MODEL_PROMPT.format(graph_json=compact)
-    return _call_tool(OBJECT_MODEL_SYSTEM, prompt, OBJECT_MODEL_TOOL, model=SONNET, max_tokens=8000)
+    return _call_tool(OBJECT_MODEL_SYSTEM, prompt, OBJECT_MODEL_TOOL, model=SONNET, max_tokens=16000)
 
 
 def generate_blueprint(graph: dict, gap_analysis: dict) -> dict:

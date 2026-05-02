@@ -816,7 +816,7 @@ function showObjectModel(result) {
   const omActions = document.getElementById('om-topbar-actions');
   if (omActions) omActions.hidden = false;
 
-  activateTab('diagram');
+  activateTab('pydantic');
   _omSetState('ready');
 }
 
@@ -851,15 +851,17 @@ function _erdComputeLayout(entityNames, relationships) {
     }
   });
   const col = {};
-  const _depth = (n, seen = new Set()) => {
+  const _depth = (n, seen) => {
     if (col[n] !== undefined) return col[n];
     if (seen.has(n)) return 0; // cycle guard
     seen.add(n);
-    const parents = incomingFrom[n];
+    const parents = incomingFrom[n] || [];
     col[n] = parents.length === 0 ? 0 : 1 + Math.max(...parents.map(p => _depth(p, seen)));
     return col[n];
   };
-  entityNames.forEach(_depth);
+  // Pass a fresh seen-set per top-level entity. Calling _depth via Array.forEach
+  // directly would bind the loop index as `seen`, breaking `seen.has(...)`.
+  entityNames.forEach(n => _depth(n, new Set()));
 
   // Group by column, then assign row within column.
   const byCol = {};
@@ -937,10 +939,13 @@ function _renderErdEntities(jsonSchema) {
     });
 
     // Size the canvas to fit positions so arrows draw correctly.
-    const maxRight  = Math.max(...Object.values(positions).map(p => p.left)) + 240 + 40;
-    const maxBottom = Math.max(...Object.values(positions).map(p => p.top))  + 240 + 40;
-    erdEntities.style.minWidth  = maxRight + 'px';
-    erdEntities.style.minHeight = maxBottom + 'px';
+    const posVals = Object.values(positions);
+    if (posVals.length) {
+      const maxRight  = Math.max(...posVals.map(p => p.left)) + 240 + 40;
+      const maxBottom = Math.max(...posVals.map(p => p.top))  + 240 + 40;
+      erdEntities.style.minWidth  = maxRight + 'px';
+      erdEntities.style.minHeight = maxBottom + 'px';
+    }
     return;
   }
 
@@ -2510,7 +2515,7 @@ function renderPulseItems(items) {
     <div class="pulse-ai-header">
       <span class="pulse-ai-title">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        AI Strategic Insights
+        Strategic Insights
       </span>
       <button class="pulse-ai-btn" id="pulse-ai-btn">Generate →</button>
     </div>
@@ -2606,7 +2611,7 @@ async function fetchPulseAi() {
     pulseAiData = await res.json();
     renderPulseAi(pulseAiData);
   } catch (e) {
-    content.innerHTML = `<div class="pulse-empty-state">AI insights failed: ${e.message}</div>`;
+    content.innerHTML = `<div class="pulse-empty-state">Insights failed: ${e.message}</div>`;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Regenerate'; }
   }
@@ -2617,7 +2622,7 @@ function renderPulseAi(data) {
   if (!content) return;
   const recs = data.recommendations || [];
   if (!recs.length) {
-    content.innerHTML = '<div class="pulse-empty-state">No AI insights available.</div>';
+    content.innerHTML = '<div class="pulse-empty-state">No insights available.</div>';
     return;
   }
   content.innerHTML = recs.map(r => `
@@ -3847,7 +3852,7 @@ function pmRenderInspector() {
       <div class="pm-inspector-reco">
         <div class="pm-reco-head">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5L18.2 21 12 16.5 5.8 21l2.39-7.14L2 9.36h7.61z"/></svg>
-          AI Recommendation
+          Recommendation
         </div>
         <div class="pm-reco-body">${_esc(reco)}</div>
       </div>
@@ -4219,7 +4224,7 @@ if (_pmOverlay) _pmOverlay.addEventListener('click', e => {
 if (_btnPmOptimise) {
   _btnPmOptimise.addEventListener('click', async () => {
     if (!currentGraphId) return;
-    pmShowOverlay('<div class="pm-optimise-loading"><div class="spinner-ring spinner-ring-sm"></div><span>Asking Haiku for optimisation suggestions…</span></div>');
+    pmShowOverlay('<div class="pm-optimise-loading"><div class="spinner-ring spinner-ring-sm"></div><span>Generating optimisation suggestions…</span></div>');
     _btnPmOptimise.disabled = true;
     try {
       const res = await fetch(`${API_BASE}/api/process-mining/${currentGraphId}/optimise`, { method: 'POST' });
