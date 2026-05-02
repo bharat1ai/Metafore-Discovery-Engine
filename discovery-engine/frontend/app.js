@@ -882,6 +882,21 @@ function _erdComputeLayout(entityNames, relationships) {
 }
 
 function _renderErdEntities(jsonSchema) {
+  try {
+    return _renderErdEntitiesUnsafe(jsonSchema);
+  } catch (err) {
+    console.error('ERD render failed:', err);
+    erdEntities.innerHTML = `
+      <div class="erd-empty-msg">
+        <div class="erd-empty-title">Diagram render failed</div>
+        <div class="erd-empty-sub">${_esc(err.message || String(err))}<br/>See JSON Schema tab for the raw model.</div>
+      </div>`;
+    erdSvg.innerHTML = '';
+    _erdRelationships = [];
+  }
+}
+
+function _renderErdEntitiesUnsafe(jsonSchema) {
   erdEntities.innerHTML = '';
   erdSvg.innerHTML = '';
   _erdRelationships = [];
