@@ -4676,7 +4676,7 @@ pre {
   font-style: italic;
 }
 
-/* ── Optimise overlay (Haiku results) ─────────────────────── */
+/* ── Optimise overlay ─────────────────────────────────────── */
 .pm-optimise-overlay {
   position: fixed; inset: 0;
   z-index: 9000;
