@@ -1,6 +1,11 @@
 #!/bin/bash
 DIR="$( cd "$( dirname "$0" )" && pwd )"
 
+# Best-effort: strip macOS "downloaded from internet" quarantine flag from
+# the launchers + .env so repeat launches don't re-prompt Gatekeeper.
+# First launch still needs right-click → Open if the zip was emailed/shared.
+xattr -d com.apple.quarantine "$DIR/START.command" "$DIR/STOP.command" "$DIR/discovery-engine/.env" 2>/dev/null || true
+
 clear
 echo ""
 echo "  ======================================================="
@@ -39,11 +44,38 @@ fi
 echo "  [OK] Configuration found."
 echo ""
 
-# Install packages
+# Set up an isolated virtual environment so `pip install` works on
+# Python builds that enforce PEP 668 (python.org 3.12+, Homebrew, etc.).
+VENV="$DIR/discovery-engine/.venv"
+if [ ! -d "$VENV" ]; then
+    echo "  Creating Python environment (one-time setup, ~10 sec)..."
+    python3 -m venv "$VENV" 2>/dev/null
+    if [ ! -d "$VENV" ]; then
+        echo "  [!] Could not create the Python environment."
+        echo "      This usually means the python3 install is incomplete."
+        echo "      Reinstall Python from https://www.python.org/downloads/ and try again."
+        echo ""
+        echo "  Press Enter to close this window..."
+        read
+        exit 1
+    fi
+fi
+
+VENV_PY="$VENV/bin/python"
+
+# Install packages inside the venv via `python -m pip` (avoids shebang-line
+# problems when the install path contains spaces). No PEP 668 issues, no sudo.
 echo "  Installing required packages (1-2 min on first run, instant after that)..."
-pip3 install -r "$DIR/discovery-engine/backend/requirements.txt" --quiet --disable-pip-version-check 2>/dev/null
+"$VENV_PY" -m pip install --upgrade pip --quiet --disable-pip-version-check 2>/dev/null
+"$VENV_PY" -m pip install -r "$DIR/discovery-engine/backend/requirements.txt" --quiet --disable-pip-version-check
 if [ $? -ne 0 ]; then
-    python3 -m pip install -r "$DIR/discovery-engine/backend/requirements.txt" --quiet --disable-pip-version-check
+    echo "  [!] Package installation failed."
+    echo "      Check your internet connection and try again."
+    echo "      Detailed log: /tmp/mw_de_server.log"
+    echo ""
+    echo "  Press Enter to close this window..."
+    read
+    exit 1
 fi
 echo "  [OK] All packages ready."
 echo ""
@@ -52,9 +84,9 @@ echo ""
 lsof -ti:8083 2>/dev/null | xargs kill -9 2>/dev/null
 sleep 1
 
-# Start server
+# Start server using the venv's python so dependencies resolve correctly.
 echo "  Starting server..."
-python3 -m uvicorn main:app --port 8083 --app-dir "$DIR/discovery-engine/backend" > /tmp/mw_de_server.log 2>&1 &
+"$VENV_PY" -m uvicorn main:app --port 8083 --app-dir "$DIR/discovery-engine/backend" > /tmp/mw_de_server.log 2>&1 &
 echo $! > /tmp/mw_de_server.pid
 
 # Wait for server to be ready
