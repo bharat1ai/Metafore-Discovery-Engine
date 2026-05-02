@@ -77,7 +77,7 @@
       </button>
     </nav>
     <div class="sidebar-bottom">
-      <button class="nav-btn" id="btn-pulse" disabled title="Pulse — alerts &amp; AI recommendations">
+      <button class="nav-btn" id="btn-pulse" disabled title="Pulse — alerts &amp; recommendations">
         <span class="sidebar-pulse-wrap">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -248,7 +248,7 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   Refresh
                 </button>
-                <button id="btn-pm-optimise" class="btn-primary-pm" title="AI optimisation suggestions (coming soon)">
+                <button id="btn-pm-optimise" class="btn-primary-pm" title="Optimisation suggestions">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.39 7.36H22l-6.19 4.5L18.2 21 12 16.5 5.8 21l2.39-7.14L2 9.36h7.61z"/></svg>
                   Optimise
                 </button>
@@ -336,7 +336,6 @@
             <div class="pm-optimise-modal">
               <div class="pm-optimise-head">
                 <div class="pm-optimise-title-wrap">
-                  <span class="pm-optimise-eyebrow">AI · Haiku</span>
                   <div class="pm-optimise-title">Optimisation suggestions</div>
                 </div>
                 <button class="pm-optimise-close" id="pm-optimise-close" aria-label="Close">
@@ -420,7 +419,7 @@
             <div class="gap-blueprint-wrap">
               <div id="gap-blueprint-pre" class="gap-blueprint-pre">
                 <div class="section-label">Blueprint Summary</div>
-                <p class="gap-bp-pre-text">Generate an AI-powered blueprint based on the gap analysis above.</p>
+                <p class="gap-bp-pre-text">Generate a blueprint based on the gap analysis above.</p>
                 <button id="btn-generate-blueprint" class="btn-primary gap-bp-btn">Generate Blueprint →</button>
               </div>
               <div id="gap-blueprint-result" class="gap-blueprint-result" hidden>
@@ -527,18 +526,12 @@
 
           <p class="model-summary" id="model-summary"></p>
           <div class="modal-tabs om-tabs" id="om-tabs" hidden>
-            <button class="tab active" data-tab="diagram">Entity Diagram</button>
-            <button class="tab" data-tab="pydantic">Pydantic</button>
+            <button class="tab active" data-tab="pydantic">Pydantic</button>
             <button class="tab" data-tab="schema">JSON Schema</button>
+            <button class="tab" data-tab="diagram">Entity Diagram</button>
           </div>
           <div class="modal-body om-body" id="om-body" hidden>
-            <div class="tab-content" id="tab-diagram">
-              <div class="erd-container" id="erd-container">
-                <svg class="erd-svg" id="erd-svg"></svg>
-                <div class="erd-entities" id="erd-entities"></div>
-              </div>
-            </div>
-            <div class="tab-content hidden" id="tab-pydantic">
+            <div class="tab-content" id="tab-pydantic">
               <div class="copy-row">
                 <button class="btn-copy" id="copy-pydantic">Copy</button>
               </div>
@@ -549,6 +542,12 @@
                 <button class="btn-copy" id="copy-schema">Copy</button>
               </div>
               <pre id="schema-code"></pre>
+            </div>
+            <div class="tab-content hidden" id="tab-diagram">
+              <div class="erd-container" id="erd-container">
+                <svg class="erd-svg" id="erd-svg"></svg>
+                <div class="erd-entities" id="erd-entities"></div>
+              </div>
             </div>
           </div>
         </div><!-- /object-model-panel -->
