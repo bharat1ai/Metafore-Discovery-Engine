@@ -1,0 +1,9 @@
+# Force LF endings on shell launchers regardless of platform autocrlf setting.
+# `.command` files run on macOS via /bin/bash — CRLF would break the shebang
+# with `bad interpreter: /bin/bash^M`. Same for plain shell scripts.
+*.command  text eol=lf
+*.sh       text eol=lf
+
+# Keep .bat / .cmd as CRLF so cmd.exe parses them correctly.
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
